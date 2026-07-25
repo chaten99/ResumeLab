@@ -8,6 +8,8 @@ import httpLogger from "./middleware/httpLogger.js";
 import notFound from "./middleware/notFound.js";
 import errorHandler from "./middleware/errorHandler.js";
 
+import authRoutes from "./routes/auth.routes.js";
+
 const app = express();
 
 // middlewares
@@ -31,6 +33,7 @@ app.get("/api/health", (req, res) => {
     });
 });
 
+app.use("/api/auth", authRoutes);
 
 // not found middleware
 app.use(notFound);

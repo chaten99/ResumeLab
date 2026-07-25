@@ -6,13 +6,17 @@ const envSchema = z.object({
     PORT: z.coerce.number().int().positive().default(5000),
     MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
     CLIENT_URL: z.string().url().min(1, "CLIENT_URL is required"),
-    JWT_SECRET: z.string().min(20, "JWT_SECRET must be at least 20 characters long"),
+    REDIS_URL: z.string().url().min(1, "REDIS_URL is required"),
+    JWT_ACCESS_SECRET: z.string().min(16),
+    JWT_REFRESH_SECRET: z.string().min(16),
+    JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+    JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
 })
 
 const result = envSchema.safeParse(process.env);
-if(!result.success) {
+if (!result.success) {
     console.error("Invalid environment variables:");
-    console.error(z.prettifyError(result.error.format()));
+    console.error(z.prettifyError(result.error));
     process.exit(1);
 }
 export const env = result.data;

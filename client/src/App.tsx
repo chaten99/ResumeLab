@@ -1,13 +1,50 @@
-import { Button } from "@/components/ui/button"
+import { Navigate, Route, Routes } from "react-router-dom";
+
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+
+import ProtectedRoute from "@/routes/ProtectedRoute";
+import PublicOnlyRoute from "@/routes/PublicOnlyRoute";
+
+import { Toaster } from "@/components/ui/sonner";
 
 function App() {
-  return (
-    <div className="flex min-h-svh flex-col items-center justify-center">
-      <Button onClick={() => alert("Button clicked!")}>
-        Click me
-      </Button>
-    </div>
-  )
+    return (
+        <>
+            <Routes>
+                <Route
+                    path="/"
+                    element={<div>ResumeLab</div>}
+                />
+
+                <Route element={<PublicOnlyRoute />}>
+                    <Route
+                        path="/login"
+                        element={<Login />}
+                    />
+
+                    <Route
+                        path="/register"
+                        element={<Register />}
+                    />
+                </Route>
+
+                <Route element={<ProtectedRoute />}>
+                    <Route
+                        path="/dashboard"
+                        element={<div>Dashboard</div>}
+                    />
+                </Route>
+
+                <Route
+                    path="*"
+                    element={<Navigate to="/" replace />}
+                />
+            </Routes>
+
+            <Toaster richColors position="top-right" />
+        </>
+    );
 }
 
-export default App
+export default App;
