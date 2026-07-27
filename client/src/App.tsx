@@ -1,13 +1,41 @@
-import { Button } from "@/components/ui/button"
+import { Navigate, Route, Routes } from "react-router-dom";
+
+import Login from "@/pages/authPages/Login";
+import Register from "@/pages/authPages/Register";
+import VerifyEmail from "@/pages/authPages/VerifyEmail";
+import ForgotPassword from "@/pages/authPages/ForgotPassword";
+import ResetPassword from "@/pages/authPages/ResetPassword";
+import Dashboard from "@/pages/Dashboard";
+
+import ProtectedRoute from "@/routes/ProtectedRoute";
+import PublicOnlyRoute from "@/routes/PublicOnlyRoute";
+
+import { Toaster } from "@/components/ui/sonner";
 
 function App() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center">
-      <Button onClick={() => alert("Button clicked!")}>
-        Click me
-      </Button>
-    </div>
-  )
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+        <Route element={<PublicOnlyRoute />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+        </Route>
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      <Toaster richColors position="top-right" />
+    </>
+  );
 }
 
-export default App
+export default App;
