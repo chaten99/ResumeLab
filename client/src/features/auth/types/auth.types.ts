@@ -2,6 +2,7 @@ export interface User {
     id: string;
     name: string;
     email: string;
+    isEmailVerified: boolean;
     createdAt?: string;
 }
 
@@ -30,4 +31,23 @@ export interface MeResponse {
 export interface MessageResponse {
     success: boolean;
     message: string;
+}
+
+export interface VerifyEmailInput {
+    email: string;
+    otp: string;
+}
+
+export interface ResendVerificationInput {
+    email: string;
+}
+
+export interface ForgotPasswordInput {
+    email: string;
+}
+
+export interface ResetPasswordInput {
+    email: string;
+    otp: string;
+    newPassword: string;
 }

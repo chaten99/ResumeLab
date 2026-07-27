@@ -2,9 +2,9 @@ import { env } from "../config/env.js";
 import logger from "../config/logger.js";
 
 const errorHandler = (err, req, res, next) => {
-    const statusCode = err.statusCode || 500;
-    const status = err.status || "error";
-    const message = err.message || "Internal Server Error";
+    let statusCode = err.statusCode || 500;
+    let status = err.status || "error";
+    let message = err.message || "Internal Server Error";
 
     if (err.code === 11000) {
         statusCode = 409;

@@ -29,6 +29,21 @@ const refreshAccessToken = async () => {
     await refreshApi.post("/auth/refresh-token");
 };
 
+const PUBLIC_AUTH_ENDPOINTS = [
+    "/auth/login",
+    "/auth/register",
+    "/auth/verify-email",
+    "/auth/resend-verification",
+    "/auth/forgot-password",
+    "/auth/reset-password",
+    "/auth/refresh-token",
+];
+
+const isPublicAuthEndpoint = (url?: string) => {
+    if (!url) return false;
+    return PUBLIC_AUTH_ENDPOINTS.some((endpoint) => url.includes(endpoint));
+};
+
 api.interceptors.response.use(
     (response) => response,
 
@@ -40,7 +55,8 @@ api.interceptors.response.use(
         if (
             error.response?.status !== 401 ||
             !originalRequest ||
-            originalRequest._retry
+            originalRequest._retry ||
+            isPublicAuthEndpoint(originalRequest.url)
         ) {
             return Promise.reject(error);
         }
@@ -57,8 +73,8 @@ api.interceptors.response.use(
             await refreshPromise;
 
             return api(originalRequest);
-        } catch (refreshError) {
-            return Promise.reject(refreshError);
+        } catch {
+            return Promise.reject(error);
         }
     }
 );

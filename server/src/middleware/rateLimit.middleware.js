@@ -20,7 +20,7 @@ const createRateLimiter = ({
             next();
         } catch (err) {
             if (err instanceof Error) {
-                return next(error);
+                return next(err);
             }
             return next(new AppError("Too many requests. Please try again later.", 429));
         }
@@ -29,18 +29,36 @@ const createRateLimiter = ({
 
 export const registerRateLimiter = createRateLimiter({
     points: 5,
-    duration: 15*60, // 15 minutes
+    duration: 15 * 60, // 15 minutes
     keyPrefix: "register",
 });
 
 export const loginRateLimiter = createRateLimiter({
     points: 10,
-    duration: 15*60, // 15 minutes
+    duration: 15 * 60, // 15 minutes
     keyPrefix: "login",
 });
 
 export const refreshTokenRateLimiter = createRateLimiter({
     points: 20,
-    duration: 15*60, // 15 minutes
+    duration: 15 * 60, // 15 minutes
     keyPrefix: "refreshToken",
+});
+
+export const resendVerificationRateLimiter = createRateLimiter({
+        points: 3,
+        duration: 15 * 60,
+        keyPrefix: "rate_limit_resend_verification",
+});
+
+export const forgotPasswordRateLimiter = createRateLimiter({
+        points: 3,
+        duration: 15 * 60,
+        keyPrefix: "rate_limit_forgot_password",
+});
+
+export const resetPasswordRateLimiter = createRateLimiter({
+        points: 5,
+        duration: 15 * 60,
+        keyPrefix: "rate_limit_reset_password",
 });
