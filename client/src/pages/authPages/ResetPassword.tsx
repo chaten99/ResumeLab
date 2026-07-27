@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,7 +38,6 @@ const ResetPassword = () => {
     register,
     handleSubmit,
     watch,
-    trigger,
     formState: { errors, isValid, isSubmitted },
   } = useForm<ResetPasswordFormData>({
     resolver: zodResolver(resetPasswordSchema),
@@ -60,12 +59,6 @@ const ResetPassword = () => {
 
   const isPasswordMatching =
     confirmPasswordValue.length > 0 && confirmPasswordValue === newPasswordValue;
-
-  useEffect(() => {
-    if (confirmPasswordValue) {
-      trigger("confirmPassword");
-    }
-  }, [newPasswordValue, confirmPasswordValue, trigger]);
 
   if (!email) {
     return <Navigate to="/forgot-password" replace />;

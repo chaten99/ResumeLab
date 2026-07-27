@@ -35,7 +35,9 @@ const ForgotPassword = () => {
 
   const onSubmit = async (data: ForgotPasswordFormData) => {
     try {
-      await forgotPasswordMutation.mutateAsync(data);
+      await forgotPasswordMutation.mutateAsync({
+        email: data.email,
+      });
       authFlowStorage.setResetEmail(data.email);
 
       toast.success(

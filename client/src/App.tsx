@@ -6,9 +6,12 @@ import VerifyEmail from "@/pages/authPages/VerifyEmail";
 import ForgotPassword from "@/pages/authPages/ForgotPassword";
 import ResetPassword from "@/pages/authPages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
+import UploadResume from "@/pages/UploadResume";
+import ResumeDetails from "@/pages/ResumeDetails";
 
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import PublicOnlyRoute from "@/routes/PublicOnlyRoute";
+import { AppLayout } from "@/layouts/AppLayout";
 
 import { Toaster } from "@/components/ui/sonner";
 
@@ -27,7 +30,12 @@ function App() {
         </Route>
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/resumes/new" element={<UploadResume />} />
+            <Route path="/analyze" element={<UploadResume />} />
+            <Route path="/resumes/:id" element={<ResumeDetails />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
