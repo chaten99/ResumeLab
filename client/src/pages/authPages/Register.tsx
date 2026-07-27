@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,7 +29,6 @@ const Register = () => {
     register,
     handleSubmit,
     watch,
-    trigger,
     formState: { errors, isValid, isSubmitted },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -51,12 +50,6 @@ const Register = () => {
 
   const isPasswordMatching =
     confirmPasswordValue.length > 0 && confirmPasswordValue === passwordValue;
-
-  useEffect(() => {
-    if (confirmPasswordValue) {
-      trigger("confirmPassword");
-    }
-  }, [passwordValue, confirmPasswordValue, trigger]);
 
   const onSubmit = async (data: RegisterFormData) => {
     try {

@@ -1,0 +1,81 @@
+CHATEN
+Software Developer
++91-7015079161 · chatentoor009@gmail.com · Jind, Haryana · LinkedIn · GitHub · Portfolio
+TECHNICAL SKILLS
+Languages: JavaScript (ES6+), TypeScript, C++, C
+Frontend: React.js, HTML5, CSS3, Tailwind CSS, ShadCN UI, Zustand
+Backend: Node.js, Express.js, REST API Design, JWT Authentication, OAuth 2.0, Middleware Architecture
+Databases: MongoDB, PostgreSQL
+Core CS: Data Structures & Algorithms, OOP, Operating Systems, DBMS, Computer Networks
+Systems: System Design Fundamentals, Caching (Redis), Event-Driven Architecture
+DevTools: Git, GitHub, Docker, Postman, Cloudinary, Linux, VS Code
+EXPERIENCE
+Intern · CodeQuotient 	Feb 2026 – Present
+• Engineered reusable React.js components from the ground up, implementing custom hooks and prop management to boost
+application performance.
+• Designed responsive UI layouts using Tailwind CSS and ShadCN UI, and implemented global state management with Zustand to
+eliminate unnecessary re-renders.
+• Integrated Redis caching on the backend to reduce redundant queries and improve API response times, applying system design
+fundamentals like caching strategies and scalability trade-offs.
+Intern · CodeQuotient 	Aug 2025 – Oct 2025
+• Developed RESTful API endpoints using Node.js and Express.js, following MVC architecture and REST design principles
+throughout.
+• Designed and optimized PostgreSQL database schemas with proper indexing and normalization strategies, improving query
+performance in personal backend projects.
+• Built a layered authentication system covering JWT tokens, role-based authorization (RBAC), and request validation middleware
+— applied across multiple full-stack projects.
+Summer Trainee · CodeQuotient 	Jul 2025 – Aug 2025
+• Delivered 5 JavaScript projects independently — including a To-Do App, Stopwatch, and API Compiler — building proficiency in
+DOM manipulation and async programming.
+• Practiced DSA fundamentals daily, solving 2–3 problems per session on arrays, strings, and recursion to strengthen core
+algorithmic problem-solving ability.
+PROJECTS
+QuickTalk – Real-Time Chat Application GitHub ↗
+Stack: Node.js · Express.js · Socket.io · MongoDB · Redis · JWT · OAuth 2.0
+• Built a full-stack real-time messaging platform using Socket.io WebSockets, handling concurrent connections with low-latency
+message delivery.
+• Designed a unified authentication system supporting OTP sign-up, JWT session tokens, and OAuth 2.0 — securing all user entry
+points with zero unprotected routes.
+• Integrated Redis caching for session data and active-user lookups to reduce redundant database reads and improve throughput
+at scale.
+Doc-Sign – Digital Document Signing & Management GitHub ↗
+Stack: Node.js · Express.js · MongoDB · React.js · Tailwind CSS · JWT · RBAC
+• Constructed a full-stack document management platform with 3-tier Role-Based Access Control (RBAC) covering Readers, Court
+Officers, and Admins.
+• Engineered end-to-end document workflows (upload → review → sign/reject → archive), streamlining manual processing steps
+for court officers.
+• Delivered an admin dashboard with full CRUD control over 3 entity types, enabling real-time visibility into document status and
+user activity.
+
+-- 1 of 2 --
+
+ShopVerse – E-Commerce Platform GitHub ↗
+Stack: MongoDB · Express.js · React.js (TypeScript) · Node.js · Zustand · Tailwind CSS
+• Launched a full-stack MERN e-commerce platform with a TypeScript-powered frontend supporting product listings, cart
+management, and order processing.
+• Optimized high-traffic API routes using MongoDB aggregation pipelines and selective field projection for improved response
+efficiency.
+• Managed global client-side state with Zustand, reducing component prop-drilling and simplifying cart and session logic across
+the frontend.
+ERP System – Team Collaboration Project GitHub ↗
+Stack: PostgreSQL · Node.js · Express.js · Git/GitHub
+• Modeled 7 normalized PostgreSQL schemas covering students, faculty, courses, fees, and scheduling — ensuring referential
+integrity and minimal data redundancy.
+• Coordinated feature development across a 4-person team using Git branching strategies, pull requests, and code reviews,
+maintaining a clean main branch throughout.
+EDUCATION
+BCA — Artificial Intelligence 	CQST College (Kurukshetra University), 2024 – Present
+Class 12 (Science Stream) 	D.A.V Centenary Public School, 2023
+Class 10 	D.A.V Centenary Public School, 2021
+Certifications
+• Problem Solving (Intermediate) - HackerRank ↗
+• Rest API (Intermediate) - HackerRank ↗
+• Software Engineer Intern (Role) - HackerRank ↗
+ACHIEVEMENTS
+• Runner-Up, CodeMasters 2025 Hackathon — Ranked Top out of all participating persons; solved algorithmic challenges without
+using built-in library functions under strict time pressure. [Link]
+• Industrial Training Certification — Completed a structured software engineering internship at CodeQuotient Pvt. Ltd. covering
+full-stack development, backend systems, and professional engineering workflows. [Link]
+
+-- 2 of 2 --
+

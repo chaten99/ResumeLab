@@ -27,7 +27,7 @@ const Login = () => {
   const {
     register,
     handleSubmit,
-    formState: { errors, isValid, isSubmitted },
+    formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     mode: "onChange",
@@ -39,11 +39,18 @@ const Login = () => {
 
   const onSubmit = async (data: LoginFormData) => {
     try {
-      await loginMutation.mutateAsync(data);
+      await loginMutation.mutateAsync({
+        email: data.email,
+        password: data.password,
+      });
       toast.success("Welcome back!");
 
-      const from = location.state?.from?.pathname;
-      navigate(from || "/dashboard", {
+      const from =
+        typeof location.state?.from === "string"
+          ? location.state.from
+          : location.state?.from?.pathname || "/dashboard";
+
+      navigate(from, {
         replace: true,
       });
     } catch (error) {
@@ -129,7 +136,7 @@ const Login = () => {
         <Button
           type="submit"
           className="w-full mt-2"
-          disabled={loginMutation.isPending || (isSubmitted && !isValid)}
+          disabled={loginMutation.isPending}
         >
           {loginMutation.isPending ? "Signing in..." : "Sign in"}
         </Button>

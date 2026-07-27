@@ -1,69 +1,62 @@
-import { useCurrentUser, useLogout } from "@/features/auth/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
-import { toast } from "sonner";
+import React from "react";
 import { useNavigate } from "react-router-dom";
+import { Plus, FileText } from "lucide-react";
 
-const Dashboard = () => {
-  const { data: userResponse, isLoading } = useCurrentUser();
-  const logoutMutation = useLogout();
+import { useResumes } from "@/features/resumes/hooks/useResumes";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ResumeList } from "@/features/resumes/components/ResumeList";
+
+const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { data: resumesResponse, isLoading } = useResumes();
 
-  const user = userResponse?.user;
-
-  const handleLogout = async () => {
-    try {
-      await logoutMutation.mutateAsync();
-      toast.success("Logged out successfully");
-      navigate("/login", { replace: true });
-    } catch {
-      toast.error("Logout failed. Please try again.");
-    }
-  };
+  const resumes = resumesResponse?.resumes || [];
+  const totalResumes = resumes.length;
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex items-center space-x-2 text-muted-foreground">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span>Loading dashboard...</span>
-        </div>
+      <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <header className="border-b bg-card">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight text-primary">
-              ResumeLab
-            </span>
-            <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-              Dashboard
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium hidden sm:inline-block">
-              {user?.name}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              disabled={logoutMutation.isPending}
-              className="gap-2"
-            >
-              <LogOut className="size-4" />
-              {logoutMutation.isPending ? "Logging out..." : "Logout"}
-            </Button>
-          </div>
+    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
+        <div className="space-y-1">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            Dashboard
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {totalResumes === 1
+              ? "1 uploaded resume prepared for role analysis."
+              : `${totalResumes} uploaded resumes prepared for role analysis.`}
+          </p>
         </div>
-      </header>
 
+        <Button
+          size="sm"
+          onClick={() => navigate("/resumes/new")}
+          className="gap-1.5 text-xs font-medium h-8 shrink-0"
+        >
+          <Plus className="size-3.5" />
+          <span>Upload resume</span>
+        </Button>
+      </div>
 
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <FileText className="size-3.5" />
+            <span>Your Resumes</span>
+          </h2>
+        </div>
+
+        <ResumeList limit={20} />
+      </div>
     </div>
   );
 };

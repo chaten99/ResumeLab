@@ -6,17 +6,11 @@ import axios, {
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
     withCredentials: true,
-    headers: {
-        "Content-Type": "application/json",
-    },
 });
 
 const refreshApi = axios.create({
     baseURL: import.meta.env.VITE_API_URL,
     withCredentials: true,
-    headers: {
-        "Content-Type": "application/json",
-    },
 });
 
 interface RetryRequestConfig extends InternalAxiosRequestConfig {
