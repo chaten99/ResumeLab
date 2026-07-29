@@ -14,4 +14,4 @@ export const sendEmail = async ({
         text,
         html,
     });
-}
+};

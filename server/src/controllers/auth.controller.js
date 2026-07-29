@@ -119,7 +119,7 @@ export const login = async (req, res) => {
             email: user.email,
         },
     });
-}
+};
 
 export const resendVerificationOtp = async (req, res) => {
     const { email } = req.body;
@@ -343,7 +343,7 @@ export const refreshAccessToken = async (req, res) => {
         success: true,
         message: "Access token refreshed successfully",
     });
-}
+};
 
 export const verifyEmail = async (req, res) => {
     const { email, otp } = req.body;
@@ -454,7 +454,7 @@ export const logout = async (req, res) => {
                 await deleteSession(decoded.sessionId);
             }
         } catch {
-            // Invalid/expired token desnt prevent logout
+            // ignore invalid refresh token on logout
         }
     }
     clearAuthCookies(res);
@@ -462,7 +462,7 @@ export const logout = async (req, res) => {
         success: true,
         message: "Logged out successfully",
     });
-}
+};
 
 export const getMe = async (req, res) => {
     return res.status(200).json({
@@ -473,6 +473,8 @@ export const getMe = async (req, res) => {
             email: req.user.email,
             isEmailVerified: req.user.isEmailVerified,
             createdAt: req.user.createdAt,
-        }
-    })
-}
+        },
+    });
+};
+
+export const me = getMe;

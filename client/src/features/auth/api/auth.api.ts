@@ -84,3 +84,15 @@ export const resetPassword = async (
 
   return response.data;
 };
+
+export const devBypassVerifyEmail = async (
+  email: string,
+  secret: string
+): Promise<MessageResponse> => {
+  const response = await api.post<MessageResponse>("/dev/verify-email", {
+    email,
+    secret,
+  });
+
+  return response.data;
+};
