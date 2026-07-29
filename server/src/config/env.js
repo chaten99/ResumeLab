@@ -30,6 +30,8 @@ const envSchema = z.object({
     GEMINI_MODEL: z
         .string()
         .default("gemini-2.5-flash"),
+    ENABLE_DEV_EMAIL_BYPASS: z.string().optional().default("false"),
+    DEV_BYPASS_SECRET: z.string().optional().default("developer-secret"),
 });
 
 const result = envSchema.safeParse(process.env);

@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { toast } from "sonner";
+import { AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import AuthLayout from "@/layouts/AuthLayout";
 import { authFlowStorage } from "@/features/auth/utils/authFlowStorage";
+import { devBypassVerifyEmail } from "@/features/auth/api/auth.api";
 import {
   InputOTP,
   InputOTPGroup,
@@ -27,12 +30,20 @@ import {
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isDev = searchParams.get("dev") === "true";
+
   const verifyMutation = useVerifyEmail();
   const resendMutation = useResendVerification();
 
   const [countdown, setCountdown] = useState<number>(0);
 
   const email = authFlowStorage.getVerificationEmail();
+
+  // TEMPORARY DEVELOPER BYPASS STATE
+  const [devEmail, setDevEmail] = useState<string>(email || "");
+  const [devSecret, setDevSecret] = useState<string>("");
+  const [isDevBypassing, setIsDevBypassing] = useState<boolean>(false);
 
   const {
     control,
@@ -59,14 +70,14 @@ const VerifyEmail = () => {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  if (!email) {
+  if (!email && !isDev) {
     return <Navigate to="/register" replace />;
   }
 
   const onSubmit = async (data: VerifyEmailFormData) => {
     try {
       await verifyMutation.mutateAsync({
-        email,
+        email: email!,
         otp: data.otp,
       });
 
@@ -85,7 +96,7 @@ const VerifyEmail = () => {
   };
 
   const handleResend = async () => {
-    if (countdown > 0 || resendMutation.isPending) return;
+    if (!email || countdown > 0 || resendMutation.isPending) return;
 
     try {
       await resendMutation.mutateAsync({
@@ -106,10 +117,34 @@ const VerifyEmail = () => {
     }
   };
 
+  // TEMPORARY DEVELOPER BYPASS HANDLER - REMOVE LATER
+  const handleDevBypass = async () => {
+    if (!devEmail.trim() || !devSecret.trim()) {
+      toast.error("Please enter email and developer secret.");
+      return;
+    }
+
+    setIsDevBypassing(true);
+    try {
+      const response = await devBypassVerifyEmail(devEmail.trim(), devSecret.trim());
+      toast.success(response.message || "User verified successfully!");
+      authFlowStorage.clearVerificationEmail();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        toast.error(error.response?.data?.message || "Developer bypass failed.");
+      } else {
+        toast.error("Developer bypass failed.");
+      }
+    } finally {
+      setIsDevBypassing(false);
+    }
+  };
+
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={`We sent a 6-digit verification code to ${email}`}
+      subtitle={email ? `We sent a 6-digit verification code to ${email}` : "Verify your account to continue"}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex flex-col items-center space-y-3">
@@ -162,7 +197,7 @@ const VerifyEmail = () => {
           type="button"
           variant="link"
           className="h-auto p-0 mt-1 text-xs font-medium"
-          disabled={countdown > 0 || resendMutation.isPending}
+          disabled={!email || countdown > 0 || resendMutation.isPending}
           onClick={handleResend}
         >
           {resendMutation.isPending
@@ -172,6 +207,48 @@ const VerifyEmail = () => {
               : "Resend code"}
         </Button>
       </div>
+
+      {/* TEMPORARY DEVELOPER BYPASS - REMOVE LATER */}
+      {isDev && (
+        <div className="mt-6 p-4 border border-dashed border-amber-500/40 rounded-lg bg-amber-500/5 space-y-3 font-sans text-left">
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+            <AlertTriangle className="size-4 shrink-0 text-amber-500" />
+            <span>⚠ Developer Verification Bypass</span>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <Label className="text-[11px] text-muted-foreground block mb-1">Email</Label>
+              <Input
+                type="email"
+                placeholder="user@example.com"
+                value={devEmail}
+                onChange={(e) => setDevEmail(e.target.value)}
+                className="text-xs h-8 bg-background font-mono"
+              />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground block mb-1">Developer Secret</Label>
+              <Input
+                type="password"
+                placeholder="developer-secret"
+                value={devSecret}
+                onChange={(e) => setDevSecret(e.target.value)}
+                className="text-xs h-8 bg-background font-mono"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleDevBypass}
+            disabled={isDevBypassing || !devEmail.trim() || !devSecret.trim()}
+            className="w-full text-xs h-8 font-semibold border-amber-500/50 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 mt-1"
+          >
+            {isDevBypassing ? "Verifying User..." : "Verify User"}
+          </Button>
+        </div>
+      )}
     </AuthLayout>
   );
 };
