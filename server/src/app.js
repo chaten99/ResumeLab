@@ -10,6 +10,7 @@ import errorHandler from "./middleware/errorHandler.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import resumeRoutes from "./routes/resume.routes.js";
+import devRoutes from "./routes/dev.routes.js";
 
 const app = express();
 
@@ -34,6 +35,7 @@ app.get("/api/health", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/resumes", resumeRoutes);
+app.use("/api/dev", devRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
