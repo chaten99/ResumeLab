@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
@@ -38,10 +38,13 @@ const VerifyEmail = () => {
 
   const [countdown, setCountdown] = useState<number>(0);
 
-  const email = authFlowStorage.getVerificationEmail();
+  const storedEmail = authFlowStorage.getVerificationEmail();
+  const [manualEmail, setManualEmail] = useState<string>(storedEmail || "");
+
+  const activeEmail = manualEmail.trim() || storedEmail || "";
 
   // TEMPORARY DEVELOPER BYPASS STATE
-  const [devEmail, setDevEmail] = useState<string>(email || "");
+  const [devEmail, setDevEmail] = useState<string>(activeEmail || "");
   const [devSecret, setDevSecret] = useState<string>("");
   const [isDevBypassing, setIsDevBypassing] = useState<boolean>(false);
 
@@ -70,14 +73,15 @@ const VerifyEmail = () => {
     return () => clearInterval(timer);
   }, [countdown]);
 
-  if (!email && !isDev) {
-    return <Navigate to="/register" replace />;
-  }
-
   const onSubmit = async (data: VerifyEmailFormData) => {
+    if (!activeEmail) {
+      toast.error("Please enter your email address.");
+      return;
+    }
+
     try {
       await verifyMutation.mutateAsync({
-        email: email!,
+        email: activeEmail,
         otp: data.otp,
       });
 
@@ -96,11 +100,14 @@ const VerifyEmail = () => {
   };
 
   const handleResend = async () => {
-    if (!email || countdown > 0 || resendMutation.isPending) return;
+    if (!activeEmail || countdown > 0 || resendMutation.isPending) {
+      if (!activeEmail) toast.error("Please enter your email address first.");
+      return;
+    }
 
     try {
       await resendMutation.mutateAsync({
-        email,
+        email: activeEmail,
       });
 
       toast.success("A new verification code has been sent.");
@@ -119,14 +126,16 @@ const VerifyEmail = () => {
 
   // TEMPORARY DEVELOPER BYPASS HANDLER - REMOVE LATER
   const handleDevBypass = async () => {
-    if (!devEmail.trim() || !devSecret.trim()) {
+    const targetEmail = devEmail.trim() || activeEmail.trim();
+
+    if (!targetEmail || !devSecret.trim()) {
       toast.error("Please enter email and developer secret.");
       return;
     }
 
     setIsDevBypassing(true);
     try {
-      const response = await devBypassVerifyEmail(devEmail.trim(), devSecret.trim());
+      const response = await devBypassVerifyEmail(targetEmail, devSecret.trim());
       toast.success(response.message || "User verified successfully!");
       authFlowStorage.clearVerificationEmail();
       navigate("/login", { replace: true });
@@ -144,9 +153,29 @@ const VerifyEmail = () => {
   return (
     <AuthLayout
       title="Verify your email"
-      subtitle={email ? `We sent a 6-digit verification code to ${email}` : "Verify your account to continue"}
+      subtitle={
+        activeEmail
+          ? `We sent a 6-digit verification code to ${activeEmail}`
+          : "Enter your email and verification code to continue"
+      }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {!storedEmail && (
+          <div className="space-y-1.5 text-left">
+            <Label className="text-xs">Email Address</Label>
+            <Input
+              type="email"
+              placeholder="user@example.com"
+              value={manualEmail}
+              onChange={(e) => {
+                setManualEmail(e.target.value);
+                if (!devEmail) setDevEmail(e.target.value);
+              }}
+              className="text-xs"
+            />
+          </div>
+        )}
+
         <div className="flex flex-col items-center space-y-3">
           <div className="flex items-center justify-between w-full">
             <Label className="self-start">Verification Code</Label>
@@ -197,7 +226,7 @@ const VerifyEmail = () => {
           type="button"
           variant="link"
           className="h-auto p-0 mt-1 text-xs font-medium"
-          disabled={!email || countdown > 0 || resendMutation.isPending}
+          disabled={!activeEmail || countdown > 0 || resendMutation.isPending}
           onClick={handleResend}
         >
           {resendMutation.isPending

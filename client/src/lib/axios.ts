@@ -31,6 +31,7 @@ const PUBLIC_AUTH_ENDPOINTS = [
     "/auth/forgot-password",
     "/auth/reset-password",
     "/auth/refresh-token",
+    "/dev/verify-email",
 ];
 
 const isPublicAuthEndpoint = (url?: string) => {
