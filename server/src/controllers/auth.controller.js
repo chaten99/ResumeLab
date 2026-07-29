@@ -26,9 +26,11 @@ import {
     verifyOtp,
 } from "../utils/otp.js";
 import {
-    sendVerificationOtpEmail,
-    sendPasswordResetOtpEmail,
-} from "../services/authEmail.service.js";
+    sendEmail,
+    verifyEmailTemplate,
+    forgotPasswordTemplate,
+    welcomeTemplate,
+} from "../services/email/index.js";
 
 export const register = async (req, res) => {
     const { name, email, password } = req.body;
@@ -60,11 +62,17 @@ export const register = async (req, res) => {
     });
 
     try {
-        await sendVerificationOtpEmail({
-            email: user.email,
+        const { subject, html, text } = verifyEmailTemplate({
             name: user.name,
             otp,
             expiresIn: env.OTP_EXPIRES_IN,
+        });
+
+        await sendEmail({
+            to: user.email,
+            subject,
+            html,
+            text,
         });
     } catch (emailError) {
         logger.error({ err: emailError, userId: user._id }, "Failed to send registration verification email");
@@ -119,7 +127,7 @@ export const login = async (req, res) => {
             email: user.email,
         },
     });
-}
+};
 
 export const resendVerificationOtp = async (req, res) => {
     const { email } = req.body;
@@ -162,11 +170,17 @@ export const resendVerificationOtp = async (req, res) => {
         }
     );
 
-    await sendVerificationOtpEmail({
-        email: user.email,
+    const { subject, html, text } = verifyEmailTemplate({
         name: user.name,
         otp,
         expiresIn: env.OTP_EXPIRES_IN,
+    });
+
+    await sendEmail({
+        to: user.email,
+        subject,
+        html,
+        text,
     });
 
     return res.status(200).json({
@@ -212,11 +226,17 @@ export const forgotPassword = async (req, res) => {
         }
     );
 
-    await sendPasswordResetOtpEmail({
-        email: user.email,
+    const { subject, html, text } = forgotPasswordTemplate({
         name: user.name,
         otp,
         expiresIn: env.OTP_EXPIRES_IN,
+    });
+
+    await sendEmail({
+        to: user.email,
+        subject,
+        html,
+        text,
     });
 
     return res.status(200).json({
@@ -343,7 +363,7 @@ export const refreshAccessToken = async (req, res) => {
         success: true,
         message: "Access token refreshed successfully",
     });
-}
+};
 
 export const verifyEmail = async (req, res) => {
     const { email, otp } = req.body;
@@ -416,6 +436,18 @@ export const verifyEmail = async (req, res) => {
         _id: verification._id,
     });
 
+    try {
+        const { subject, html, text } = welcomeTemplate({ name: user.name });
+        await sendEmail({
+            to: user.email,
+            subject,
+            html,
+            text,
+        });
+    } catch (welcomeError) {
+        logger.warn({ err: welcomeError, userId: user._id }, "Failed to send welcome email upon verification");
+    }
+
     const sessionId = await createSession(user._id);
 
     const accessToken = generateAccessToken(
@@ -450,11 +482,9 @@ export const logout = async (req, res) => {
     if (refreshToken) {
         try {
             const decoded = verifyRefreshToken(refreshToken);
-            if (decoded.sessionId) {
-                await deleteSession(decoded.sessionId);
-            }
+            await deleteSession(decoded.sessionId);
         } catch {
-            // Invalid/expired token desnt prevent logout
+            // ignore invalid refresh token on logout
         }
     }
     clearAuthCookies(res);
@@ -462,17 +492,22 @@ export const logout = async (req, res) => {
         success: true,
         message: "Logged out successfully",
     });
-}
+};
 
-export const getMe = async (req, res) => {
+export const me = async (req, res) => {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
     return res.status(200).json({
         success: true,
         user: {
-            id: req.user._id,
-            name: req.user.name,
-            email: req.user.email,
-            isEmailVerified: req.user.isEmailVerified,
-            createdAt: req.user.createdAt,
-        }
-    })
-}
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            isEmailVerified: user.isEmailVerified,
+        },
+    });
+};

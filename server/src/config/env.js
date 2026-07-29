@@ -11,15 +11,11 @@ const envSchema = z.object({
     JWT_REFRESH_SECRET: z.string().min(16),
     JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
     JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
-    MAIL_HOST: z.string().default("localhost"),
-    MAIL_PORT: z.coerce
-        .number()
-        .int()
-        .positive()
-        .default(1025),
-    MAIL_USER: z.string().optional(),
-    MAIL_PASSWORD: z.string().optional(),
-    MAIL_FROM: z.string().default("Resume Lab <no-reply@resumelab.local>"),
+
+    BREVO_API_KEY: z.string().min(1, "BREVO_API_KEY is required"),
+    MAIL_FROM: z.string().email("MAIL_FROM must be a valid email").default("no-reply@resumelab.com"),
+    MAIL_FROM_NAME: z.string().default("ResumeLab"),
+
     OTP_SECRET: z
         .string()
         .min(32, "OTP_SECRET must be at least 32 characters"),
@@ -27,11 +23,10 @@ const envSchema = z.object({
     GEMINI_API_KEY: z
         .string()
         .min(1, "GEMINI_API_KEY is required"),
-
     GEMINI_MODEL: z
         .string()
         .default("gemini-2.5-flash"),
-})
+});
 
 const result = envSchema.safeParse(process.env);
 if (!result.success) {
