@@ -26,11 +26,9 @@ import {
     verifyOtp,
 } from "../utils/otp.js";
 import {
-    sendEmail,
-    verifyEmailTemplate,
-    forgotPasswordTemplate,
-    welcomeTemplate,
-} from "../services/email/index.js";
+    sendVerificationOtpEmail,
+    sendPasswordResetOtpEmail,
+} from "../services/authEmail.service.js";
 
 export const register = async (req, res) => {
     const { name, email, password } = req.body;
@@ -62,17 +60,11 @@ export const register = async (req, res) => {
     });
 
     try {
-        const { subject, html, text } = verifyEmailTemplate({
+        await sendVerificationOtpEmail({
+            email: user.email,
             name: user.name,
             otp,
             expiresIn: env.OTP_EXPIRES_IN,
-        });
-
-        await sendEmail({
-            to: user.email,
-            subject,
-            html,
-            text,
         });
     } catch (emailError) {
         logger.error({ err: emailError, userId: user._id }, "Failed to send registration verification email");
@@ -170,17 +162,11 @@ export const resendVerificationOtp = async (req, res) => {
         }
     );
 
-    const { subject, html, text } = verifyEmailTemplate({
+    await sendVerificationOtpEmail({
+        email: user.email,
         name: user.name,
         otp,
         expiresIn: env.OTP_EXPIRES_IN,
-    });
-
-    await sendEmail({
-        to: user.email,
-        subject,
-        html,
-        text,
     });
 
     return res.status(200).json({
@@ -226,17 +212,11 @@ export const forgotPassword = async (req, res) => {
         }
     );
 
-    const { subject, html, text } = forgotPasswordTemplate({
+    await sendPasswordResetOtpEmail({
+        email: user.email,
         name: user.name,
         otp,
         expiresIn: env.OTP_EXPIRES_IN,
-    });
-
-    await sendEmail({
-        to: user.email,
-        subject,
-        html,
-        text,
     });
 
     return res.status(200).json({
@@ -436,18 +416,6 @@ export const verifyEmail = async (req, res) => {
         _id: verification._id,
     });
 
-    try {
-        const { subject, html, text } = welcomeTemplate({ name: user.name });
-        await sendEmail({
-            to: user.email,
-            subject,
-            html,
-            text,
-        });
-    } catch (welcomeError) {
-        logger.warn({ err: welcomeError, userId: user._id }, "Failed to send welcome email upon verification");
-    }
-
     const sessionId = await createSession(user._id);
 
     const accessToken = generateAccessToken(
@@ -482,7 +450,9 @@ export const logout = async (req, res) => {
     if (refreshToken) {
         try {
             const decoded = verifyRefreshToken(refreshToken);
-            await deleteSession(decoded.sessionId);
+            if (decoded.sessionId) {
+                await deleteSession(decoded.sessionId);
+            }
         } catch {
             // ignore invalid refresh token on logout
         }
@@ -494,22 +464,17 @@ export const logout = async (req, res) => {
     });
 };
 
-export const me = async (req, res) => {
-    const user = await User.findById(req.user.id);
-
-    if (!user) {
-        throw new AppError("User not found", 404);
-    }
-
+export const getMe = async (req, res) => {
     return res.status(200).json({
         success: true,
         user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            isEmailVerified: user.isEmailVerified,
+            id: req.user._id,
+            name: req.user.name,
+            email: req.user.email,
+            isEmailVerified: req.user.isEmailVerified,
+            createdAt: req.user.createdAt,
         },
     });
 };
 
-export const getMe = me;
+export const me = getMe;
