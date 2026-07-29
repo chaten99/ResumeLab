@@ -21,7 +21,9 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+        {/* Publicly accessible standalone routes (without auth guards) */}
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-email/" element={<VerifyEmail />} />
 
         <Route element={<PublicOnlyRoute />}>
           <Route path="/login" element={<Login />} />
@@ -39,7 +41,7 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
 
       <Toaster richColors position="top-right" />
