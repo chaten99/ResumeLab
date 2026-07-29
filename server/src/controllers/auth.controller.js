@@ -511,3 +511,5 @@ export const me = async (req, res) => {
         },
     });
 };
+
+export const getMe = me;
