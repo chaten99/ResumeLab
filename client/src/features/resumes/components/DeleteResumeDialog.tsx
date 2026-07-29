@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2, Loader2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDeleteResume } from "@/features/resumes/hooks/useResumes";
+import { Spinner } from "@/components/ui/spinner";
 
 interface DeleteResumeDialogProps {
   resume: {
@@ -86,7 +87,7 @@ export function DeleteResumeDialog({
           >
             {isDeleting ? (
               <>
-                <Loader2 className="size-3.5 animate-spin" />
+                <Spinner />
                 <span>Deleting...</span>
               </>
             ) : (

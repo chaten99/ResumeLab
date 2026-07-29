@@ -1,47 +1,50 @@
 import mongoose from "mongoose";
-const resumeSchema = new mongoose.Schema({
+
+const resumeSchema = new mongoose.Schema(
+  {
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
-        index: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
     },
     originalName: {
-        type: String,
-        required: true,
-        trim: true,
+      type: String,
+      required: true,
+      trim: true,
     },
     targetRole: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 100,
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
     },
     jobDescription: {
-        type: String,
-        trim: true,
-        maxlength: 10000,
-        default: "",
+      type: String,
+      trim: true,
+      maxlength: 10000,
+      default: "",
     },
     extractedText: {
-        type: String,
-        default: "",
+      type: String,
+      default: "",
+    },
+    structuredResume: {
+      type: Object,
+      default: null,
     },
     status: {
-        type: String,
-        enum: [
-            "parsed",
-            "analyzing",
-            "completed",
-            "failed"
-        ],
-        default: "parsed",
+      type: String,
+      enum: ["parsed", "analyzing", "completed", "failed"],
+      default: "parsed",
     },
     pageCount: {
-        type: Number,
-        min: 1,
+      type: Number,
+      min: 1,
     },
-}, { timestamps: true });
+  },
+  { timestamps: true }
+);
 
 resumeSchema.index({ userId: 1, createdAt: -1 });
 const Resume = mongoose.model("Resume", resumeSchema);

@@ -37,6 +37,7 @@ export const useLogin = () => {
     mutationFn: loginUser,
 
     onSuccess: (data) => {
+      queryClient.clear();
       queryClient.setQueryData(authKeys.me, {
         success: true,
         user: data.user,
@@ -52,9 +53,7 @@ export const useLogout = () => {
     mutationFn: logoutUser,
 
     onSuccess: () => {
-      queryClient.removeQueries({
-        queryKey: authKeys.all,
-      });
+      queryClient.clear();
     },
   });
 };
@@ -66,6 +65,7 @@ export const useVerifyEmail = () => {
     mutationFn: verifyEmail,
 
     onSuccess: (data) => {
+      queryClient.clear();
       queryClient.setQueryData(authKeys.me, {
         success: true,
         user: data.user,
@@ -93,9 +93,7 @@ export const useResetPassword = () => {
     mutationFn: resetPassword,
 
     onSuccess: () => {
-      queryClient.removeQueries({
-        queryKey: authKeys.all,
-      });
+      queryClient.clear();
     },
   });
 };

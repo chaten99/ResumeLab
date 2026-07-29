@@ -1,9 +1,10 @@
 import Resume from "../models/resume.model.js";
+import Analysis from "../models/analysis.model.js";
 import AppError from "../utils/AppError.js";
 import { parseResumePdf } from "../services/resumeParser.service.js";
 
 export const uploadResume = async (req, res) => {
-    if(!req.file) {
+    if (!req.file) {
         throw new AppError("No file uploaded", 400);
     }
     const { targetRole, jobDescription } = req.body;
@@ -30,9 +31,9 @@ export const uploadResume = async (req, res) => {
             pageCount: resume.pageCount,
             status: resume.status,
             createdAt: resume.createdAt,
-        }
-    })
-}
+        },
+    });
+};
 
 export const getResumes = async (req, res) => {
     const resumes = await Resume.find({
@@ -56,10 +57,7 @@ export const getResumeById = async (req, res) => {
     }).lean();
 
     if (!resume) {
-        throw new AppError(
-            "Resume not found",
-            404
-        );
+        throw new AppError("Resume not found", 404);
     }
 
     return res.status(200).json({
@@ -75,11 +73,13 @@ export const deleteResume = async (req, res) => {
     });
 
     if (!resume) {
-        throw new AppError(
-            "Resume not found",
-            404
-        );
+        throw new AppError("Resume not found", 404);
     }
+
+    await Analysis.deleteMany({
+        resumeId: req.params.id,
+        userId: req.user._id,
+    });
 
     return res.status(200).json({
         success: true,

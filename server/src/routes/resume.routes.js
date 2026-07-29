@@ -12,9 +12,17 @@ import {
 } from "../controllers/resume.controller.js";
 
 import {
+    analyzeResume,
+    getResumeAnalysis,
+} from "../controllers/analysis.controller.js";
+
+import {
     uploadResumeSchema,
     resumeIdSchema,
 } from "../validators/resume.schema.js";
+
+import bulletRouter from "./bullet.routes.js";
+import atsRouter from "./ats.routes.js";
 
 const resumeRouter = Router();
 
@@ -43,5 +51,20 @@ resumeRouter.delete(
     validate(resumeIdSchema),
     deleteResume
 );
+
+resumeRouter.post(
+    "/:id/analyze",
+    validate(resumeIdSchema),
+    analyzeResume
+);
+
+resumeRouter.get(
+    "/:id/analysis",
+    validate(resumeIdSchema),
+    getResumeAnalysis
+);
+
+resumeRouter.use("/:id/bullets", bulletRouter);
+resumeRouter.use("/:id/ats-match", atsRouter);
 
 export default resumeRouter;

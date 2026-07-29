@@ -42,6 +42,10 @@ api.interceptors.response.use(
     (response) => response,
 
     async (error: AxiosError) => {
+        if (axios.isCancel(error) || error.name === "CanceledError") {
+            return Promise.reject(error);
+        }
+
         const originalRequest = error.config as
             | RetryRequestConfig
             | undefined;

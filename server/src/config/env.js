@@ -24,6 +24,13 @@ const envSchema = z.object({
         .string()
         .min(32, "OTP_SECRET must be at least 32 characters"),
     OTP_EXPIRES_IN: z.string().default("10m"),
+    GEMINI_API_KEY: z
+        .string()
+        .min(1, "GEMINI_API_KEY is required"),
+
+    GEMINI_MODEL: z
+        .string()
+        .default("gemini-2.5-flash"),
 })
 
 const result = envSchema.safeParse(process.env);

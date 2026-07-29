@@ -14,15 +14,7 @@ export const AppLayout: React.FC = () => {
       <footer className="border-t border-border/60 bg-muted/30">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-center px-4 py-5 sm:px-6 lg:px-8">
           <p className="text-center text-xs text-muted-foreground sm:text-sm">
-            Designed &amp; developed with{" "}
-            {/* <span
-              className="inline-block text-red-500"
-              aria-label="love"
-              role="img"
-            >
-              ♥
-            </span>{" "} */}
-            by{" "}
+            Designed &amp; developed by{" "}
             <a
               href="https://chaten.netlify.app"
               target="_blank"
