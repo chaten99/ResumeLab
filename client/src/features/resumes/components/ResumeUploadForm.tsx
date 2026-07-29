@@ -3,12 +3,13 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import axios from "axios";
 import { toast } from "sonner";
-import { Loader2, Briefcase, FileText, Upload, ArrowRight } from "lucide-react";
+import { Briefcase, FileText, Upload, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
 import {
   uploadResumeSchema,
@@ -153,7 +154,7 @@ export const ResumeUploadForm: React.FC<ResumeUploadFormProps> = ({ onSuccess })
       >
         {uploadMutation.isPending ? (
           <>
-            <Loader2 className="size-3.5 animate-spin" />
+            <Spinner />
             <span>Uploading & parsing resume...</span>
           </>
         ) : (

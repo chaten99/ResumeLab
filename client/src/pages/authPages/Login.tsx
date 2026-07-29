@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import AuthLayout from "@/layouts/AuthLayout";
 
 import {
@@ -135,10 +136,17 @@ const Login = () => {
 
         <Button
           type="submit"
-          className="w-full mt-2"
+          className="w-full mt-2 gap-2"
           disabled={loginMutation.isPending}
         >
-          {loginMutation.isPending ? "Signing in..." : "Sign in"}
+          {loginMutation.isPending ? (
+            <>
+              <Spinner />
+              <span>Signing in...</span>
+            </>
+          ) : (
+            "Sign in"
+          )}
         </Button>
       </form>
 

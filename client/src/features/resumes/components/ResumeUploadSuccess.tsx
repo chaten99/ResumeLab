@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, FileText, ArrowRight, RotateCcw, Eye } from "lucide-react";
+import { CheckCircle2, FileText, ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,10 +27,10 @@ export const ResumeUploadSuccess: React.FC<ResumeUploadSuccessProps> = ({
           <CheckCircle2 className="size-5" />
         </div>
         <h2 className="text-base font-bold text-foreground">
-          Resume ready
+          Resume uploaded & parsed
         </h2>
         <p className="text-xs text-muted-foreground max-w-sm">
-          Extracted PDF text is saved and prepared for target role analysis.
+          Extracted PDF text is prepared. Analyze it now against your target role requirements.
         </p>
       </div>
 
@@ -61,11 +61,11 @@ export const ResumeUploadSuccess: React.FC<ResumeUploadSuccessProps> = ({
         {resumeId && (
           <Button
             size="sm"
-            className="w-full sm:w-auto gap-1.5 text-xs h-8 font-medium"
+            className="w-full sm:w-auto gap-1.5 text-xs h-8 font-semibold bg-primary text-primary-foreground"
             onClick={() => navigate(`/resumes/${resumeId}`)}
           >
-            <Eye className="size-3.5" />
-            <span>View parsed resume</span>
+            <Sparkles className="size-3.5" />
+            <span>Analyze Resume</span>
             <ArrowRight className="size-3.5" />
           </Button>
         )}

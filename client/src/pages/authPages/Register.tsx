@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import AuthLayout from "@/layouts/AuthLayout";
 
 import {
@@ -198,12 +199,17 @@ const Register = () => {
 
         <Button
           type="submit"
-          className="w-full mt-2"
+          className="w-full mt-2 gap-2"
           disabled={registerMutation.isPending || (isSubmitted && !isValid)}
         >
-          {registerMutation.isPending
-            ? "Creating account..."
-            : "Create account"}
+          {registerMutation.isPending ? (
+            <>
+              <Spinner />
+              <span>Creating account...</span>
+            </>
+          ) : (
+            "Create account"
+          )}
         </Button>
       </form>
 

@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useCurrentUser } from "@/features/auth/hooks/useAuth";
+import { FullPageLoader } from "@/components/ui/loader";
 
 const ProtectedRoute = () => {
     const { data, isLoading } = useCurrentUser();
@@ -7,8 +8,8 @@ const ProtectedRoute = () => {
 
     if (isLoading) {
         return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p>Loading...</p>
+            <div className="flex min-h-screen items-center justify-center bg-background">
+                <FullPageLoader subtitle="Loading application..." />
             </div>
         );
     }

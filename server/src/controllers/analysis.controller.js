@@ -1,0 +1,133 @@
+import Analysis from "../models/analysis.model.js";
+import Resume from "../models/resume.model.js";
+import AppError from "../utils/AppError.js";
+import { runResumeAnalysis } from "../services/analysis.service.js";
+import { emitToUser } from "../config/socket.js";
+
+export const analyzeResume = async (req, res) => {
+    const { id: resumeId } = req.params;
+
+    const resume = await Resume.findOne({
+        _id: resumeId,
+        userId: req.user._id,
+    });
+
+    if (!resume) {
+        throw new AppError("Resume not found", 404);
+    }
+
+    const analysis = await Analysis.findOneAndUpdate(
+        {
+            resumeId: resume._id,
+            userId: req.user._id,
+        },
+        {
+            $set: {
+                status: "processing",
+                errorMessage: null,
+            },
+        },
+        {
+            returnDocument: "after",
+            upsert: true,
+            setDefaultsOnInsert: true,
+        }
+    );
+
+    resume.status = "analyzing";
+    await resume.save();
+
+    emitToUser(req.user._id, "analysis:started", {
+        resumeId: resume._id,
+    });
+
+    try {
+        const result = await runResumeAnalysis(resume);
+
+        const currentResume = await Resume.findById(resume._id);
+        const currentAnalysis = await Analysis.findById(analysis._id);
+
+        if (!currentResume || !currentAnalysis) {
+            return res.status(200).json({
+                success: false,
+                message: "Analysis target document was deleted before completion",
+            });
+        }
+
+        currentAnalysis.metrics = result.metrics;
+        currentAnalysis.scores = result.scores;
+        currentAnalysis.issues = result.issues;
+        currentAnalysis.aiAnalysis = result.ai;
+
+        currentAnalysis.recruiterPerspective = result.recruiterPerspective;
+        currentAnalysis.atsFormatting = result.atsFormatting;
+        currentAnalysis.grammarWriting = result.grammarWriting;
+        currentAnalysis.achievementImpact = result.achievementImpact;
+        currentAnalysis.experienceAnalysis = result.experienceAnalysis;
+        currentAnalysis.projectAnalysis = result.projectAnalysis;
+
+        currentAnalysis.status = "completed";
+        currentAnalysis.errorMessage = null;
+        await currentAnalysis.save();
+
+        currentResume.status = "completed";
+        await currentResume.save();
+
+        emitToUser(req.user._id, "analysis:completed", {
+            resumeId: currentResume._id,
+            analysis: currentAnalysis,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Resume analyzed successfully",
+            analysis: currentAnalysis,
+        });
+    } catch (error) {
+        const currentResume = await Resume.findById(resume._id);
+        const currentAnalysis = await Analysis.findById(analysis._id);
+
+        if (currentAnalysis && currentResume) {
+            currentAnalysis.status = "failed";
+            currentAnalysis.errorMessage = error.message || "Resume analysis failed";
+            await currentAnalysis.save();
+
+            currentResume.status = "failed";
+            await currentResume.save();
+
+            emitToUser(req.user._id, "analysis:failed", {
+                resumeId: currentResume._id,
+                errorMessage: currentAnalysis.errorMessage,
+            });
+        }
+
+        throw error;
+    }
+};
+
+export const getResumeAnalysis = async (req, res) => {
+    const { id: resumeId } = req.params;
+
+    const resume = await Resume.findOne({
+        _id: resumeId,
+        userId: req.user._id,
+    });
+
+    if (!resume) {
+        throw new AppError("Resume not found", 404);
+    }
+
+    const analysis = await Analysis.findOne({
+        resumeId: resume._id,
+        userId: req.user._id,
+    });
+
+    if (!analysis) {
+        throw new AppError("Analysis not found for this resume", 404);
+    }
+
+    return res.status(200).json({
+        success: true,
+        analysis,
+    });
+};
