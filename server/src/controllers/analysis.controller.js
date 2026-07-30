@@ -3,6 +3,8 @@ import Resume from "../models/resume.model.js";
 import AppError from "../utils/AppError.js";
 import { runResumeAnalysis } from "../services/analysis.service.js";
 import { emitToUser } from "../config/socket.js";
+import { deductCredits, refundCredits } from "../services/creditLedger.service.js";
+import { CREDIT_COSTS } from "../config/creditCosts.js";
 
 export const analyzeResume = async (req, res) => {
     const { id: resumeId } = req.params;
@@ -15,6 +17,16 @@ export const analyzeResume = async (req, res) => {
     if (!resume) {
         throw new AppError("Resume not found", 404);
     }
+
+    // Atomic Credit Deduction before AI Processing
+    await deductCredits({
+        userId: req.user._id,
+        amount: CREDIT_COSTS.RESUME_ANALYSIS,
+        type: "ai_usage",
+        action: "Resume Analysis",
+        reason: `Resume Analysis for "${resume.originalName}"`,
+        referenceId: resume._id.toString(),
+    });
 
     const analysis = await Analysis.findOneAndUpdate(
         {
@@ -84,6 +96,19 @@ export const analyzeResume = async (req, res) => {
             analysis: currentAnalysis,
         });
     } catch (error) {
+        // Automatic refund on AI failure
+        try {
+            await refundCredits({
+                userId: req.user._id,
+                amount: CREDIT_COSTS.RESUME_ANALYSIS,
+                action: "AI Analysis Failure Refund",
+                reason: `Automatic refund for failed Resume Analysis (${error.message})`,
+                referenceId: resume._id.toString(),
+            });
+        } catch (refundErr) {
+            console.error("Failed to refund credits:", refundErr);
+        }
+
         const currentResume = await Resume.findById(resume._id);
         const currentAnalysis = await Analysis.findById(analysis._id);
 

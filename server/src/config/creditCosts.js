@@ -1,0 +1,5 @@
+export const CREDIT_COSTS = {
+    RESUME_ANALYSIS: 5,
+    ATS_KEYWORD_MATCHER: 2,
+    BULLET_IMPROVER: 2,
+};

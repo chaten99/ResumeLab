@@ -30,6 +30,19 @@ import {
     sendPasswordResetOtpEmail,
 } from "../services/authEmail.service.js";
 
+const formatUserResponse = (user) => ({
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role || "user",
+    isDisabled: user.isDisabled || false,
+    plan: user.plan || "FREE",
+    credits: user.credits ?? 10,
+    subscriptionStatus: user.subscriptionStatus || "none",
+    isEmailVerified: user.isEmailVerified,
+    createdAt: user.createdAt,
+});
+
 export const register = async (req, res) => {
     const { name, email, password } = req.body;
 
@@ -73,12 +86,7 @@ export const register = async (req, res) => {
     return res.status(201).json({
         success: true,
         message: "Account created. Please verify your email.",
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            isEmailVerified: user.isEmailVerified,
-        },
+        user: formatUserResponse(user),
     });
 };
 
@@ -98,12 +106,22 @@ export const login = async (req, res) => {
         );
     }
 
+    if (user.isDisabled) {
+        throw new AppError(
+            "This account has been disabled by the administrator.",
+            403
+        );
+    }
+
     if (!user.isEmailVerified) {
         throw new AppError(
             "Please verify your email before logging in",
             403
         );
     }
+
+    user.lastLogin = new Date();
+    await user.save();
 
     const sessionId = await createSession(user._id);
     const accessToken = generateAccessToken(user._id.toString());
@@ -113,11 +131,7 @@ export const login = async (req, res) => {
     res.status(200).json({
         success: true,
         message: "User logged in successfully",
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-        },
+        user: formatUserResponse(user),
     });
 };
 
@@ -334,6 +348,10 @@ export const refreshAccessToken = async (req, res) => {
         throw new AppError("User no longer exists", 401);
     }
 
+    if (user.isDisabled) {
+        throw new AppError("This account has been disabled by the administrator.", 403);
+    }
+
     const accessToken = generateAccessToken(
         user._id.toString()
     );
@@ -342,6 +360,7 @@ export const refreshAccessToken = async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Access token refreshed successfully",
+        user: formatUserResponse(user),
     });
 };
 
@@ -436,12 +455,7 @@ export const verifyEmail = async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Email verified successfully",
-        user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            isEmailVerified: true,
-        },
+        user: formatUserResponse(user),
     });
 };
 
@@ -467,13 +481,7 @@ export const logout = async (req, res) => {
 export const getMe = async (req, res) => {
     return res.status(200).json({
         success: true,
-        user: {
-            id: req.user._id,
-            name: req.user.name,
-            email: req.user.email,
-            isEmailVerified: req.user.isEmailVerified,
-            createdAt: req.user.createdAt,
-        },
+        user: formatUserResponse(req.user),
     });
 };
 
