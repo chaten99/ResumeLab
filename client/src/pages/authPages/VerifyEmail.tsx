@@ -1,34 +1,20 @@
-// TEMPORARY DEVELOPER TOOL
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import axios from "axios";
 import { toast } from "sonner";
-import { Wrench } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import AuthLayout from "@/layouts/AuthLayout";
 import { authFlowStorage } from "@/features/auth/utils/authFlowStorage";
-import { devBypassVerifyEmail } from "@/features/auth/api/auth.api";
 import {
   InputOTP,
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 import {
   verifyEmailSchema,
@@ -39,17 +25,6 @@ import {
   useResendVerification,
   useVerifyEmail,
 } from "@/features/auth/hooks/useAuth";
-
-// TEMPORARY DEVELOPER TOOL SCHEMA
-const devToolSchema = z.object({
-  email: z
-    .string()
-    .min(1, "Email field cannot be empty.")
-    .email("Please enter a valid email."),
-  secret: z.string().min(1, "Developer secret is required."),
-});
-
-type DevToolFormData = z.infer<typeof devToolSchema>;
 
 const VerifyEmail = () => {
   const navigate = useNavigate();
@@ -64,10 +39,6 @@ const VerifyEmail = () => {
 
   const activeEmail = manualEmail.trim() || storedEmail || "";
 
-  // TEMPORARY DEVELOPER TOOL STATE
-  const [isDevDialogOpen, setIsDevDialogOpen] = useState<boolean>(false);
-  const [isDevSubmitting, setIsDevSubmitting] = useState<boolean>(false);
-
   const {
     control,
     handleSubmit,
@@ -80,27 +51,6 @@ const VerifyEmail = () => {
       otp: "",
     },
   });
-
-  // TEMPORARY DEVELOPER TOOL FORM
-  const {
-    register: registerDev,
-    handleSubmit: handleDevSubmit,
-    reset: resetDevForm,
-    setValue: setDevValue,
-    formState: { errors: devErrors },
-  } = useForm<DevToolFormData>({
-    resolver: zodResolver(devToolSchema),
-    defaultValues: {
-      email: activeEmail || "",
-      secret: "",
-    },
-  });
-
-  useEffect(() => {
-    if (activeEmail) {
-      setDevValue("email", activeEmail);
-    }
-  }, [activeEmail, setDevValue]);
 
   const otpValue = watch("otp") || "";
 
@@ -162,32 +112,6 @@ const VerifyEmail = () => {
         return;
       }
       toast.error("Something went wrong.");
-    }
-  };
-
-  // TEMPORARY DEVELOPER TOOL HANDLER
-  const onDevBypassSubmit = async (data: DevToolFormData) => {
-    setIsDevSubmitting(true);
-    try {
-      const response = await devBypassVerifyEmail(
-        data.email.trim(),
-        data.secret.trim(),
-      );
-      toast.success(response.message || "Email verified successfully.");
-      setIsDevDialogOpen(false);
-      resetDevForm();
-      authFlowStorage.clearVerificationEmail();
-      navigate("/login", { replace: true });
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        toast.error(
-          error.response?.data?.message || "Developer verification failed.",
-        );
-      } else {
-        toast.error("Something went wrong. Please try again.");
-      }
-    } finally {
-      setIsDevSubmitting(false);
     }
   };
 
@@ -273,99 +197,6 @@ const VerifyEmail = () => {
               ? `Resend in ${countdown}s`
               : "Resend code"}
         </Button>
-      </div>
-
-      {/* TEMPORARY DEVELOPER TOOL */}
-      <div className="mt-8 pt-4 border-t border-border/40 text-center text-xs text-muted-foreground">
-        <span>Need developer access? </span>
-        <Dialog open={isDevDialogOpen} onOpenChange={setIsDevDialogOpen}>
-          <DialogTrigger
-            render={
-              <Button
-                variant="link"
-                className="h-auto p-0 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Developer Verification
-              </Button>
-            }
-          />
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-                <Wrench className="size-4 text-amber-500" />
-                <span>Developer Verification</span>
-              </DialogTitle>
-              <DialogDescription className="text-xs">
-                Bypass email OTP verification for testing accounts during development.
-              </DialogDescription>
-            </DialogHeader>
-
-            <form
-              onSubmit={handleDevSubmit(onDevBypassSubmit)}
-              className="space-y-4 py-2"
-            >
-              <div className="space-y-1.5 text-left">
-                <Label htmlFor="dev-email" className="text-xs">
-                  Email
-                </Label>
-                <Input
-                  id="dev-email"
-                  type="email"
-                  placeholder="user@example.com"
-                  {...registerDev("email")}
-                  className="text-xs h-9 font-mono"
-                />
-                {devErrors.email && (
-                  <p className="text-xs font-medium text-destructive">
-                    {devErrors.email.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5 text-left">
-                <Label htmlFor="dev-secret" className="text-xs">
-                  Secret Code
-                </Label>
-                <Input
-                  id="dev-secret"
-                  type="password"
-                  placeholder="Enter developer secret"
-                  {...registerDev("secret")}
-                  className="text-xs h-9 font-mono"
-                />
-                {devErrors.secret && (
-                  <p className="text-xs font-medium text-destructive">
-                    {devErrors.secret.message}
-                  </p>
-                )}
-              </div>
-
-              <DialogFooter className="mt-6 gap-2 sm:gap-0">
-                <DialogClose
-                  render={
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="text-xs"
-                      disabled={isDevSubmitting}
-                    >
-                      Cancel
-                    </Button>
-                  }
-                />
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isDevSubmitting}
-                  className="text-xs font-medium"
-                >
-                  {isDevSubmitting ? "Verifying..." : "Verify"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
       </div>
     </AuthLayout>
   );
