@@ -1,11 +1,12 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
+  "description": "ResumeLab Backend API Server",
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed:admin": "node src/scripts/createAdmin.js"
   },
   "keywords": [],
   "author": "",
@@ -29,6 +30,7 @@
     "rate-limiter-flexible": "^11.2.0",
     "resend": "^6.18.1",
     "socket.io": "^4.8.3",
+    "stripe": "^14.25.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

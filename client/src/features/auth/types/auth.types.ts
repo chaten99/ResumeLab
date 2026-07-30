@@ -4,6 +4,11 @@ export interface User {
     name: string;
     email: string;
     isEmailVerified: boolean;
+    role?: "user" | "admin";
+    isDisabled?: boolean;
+    plan?: "FREE" | "PRO" | "PREMIUM";
+    credits?: number;
+    subscriptionStatus?: "none" | "active" | "canceled" | "past_due";
     createdAt?: string;
 }
 

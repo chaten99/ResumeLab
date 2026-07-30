@@ -46,6 +46,21 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
+        // Catch 402 Payment / Credits Required & Dispatch Modal Event
+        if (error.response?.status === 402) {
+            const data = error.response?.data as any;
+            window.dispatchEvent(
+                new CustomEvent("credits:insufficient", {
+                    detail: {
+                        message: data?.message || "Insufficient credits.",
+                        requiredCredits: data?.requiredCredits,
+                        currentCredits: data?.currentCredits,
+                    },
+                })
+            );
+            return Promise.reject(error);
+        }
+
         const originalRequest = error.config as
             | RetryRequestConfig
             | undefined;

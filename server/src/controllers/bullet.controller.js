@@ -2,6 +2,8 @@ import BulletImprovement from "../models/bulletImprovement.model.js";
 import Resume from "../models/resume.model.js";
 import AppError from "../utils/AppError.js";
 import { improveBulletWithAi } from "../services/ai/bulletImprover.service.js";
+import { deductCredits, refundCredits } from "../services/creditLedger.service.js";
+import { CREDIT_COSTS } from "../config/creditCosts.js";
 
 export const improveBullet = async (req, res) => {
     const { id: resumeId } = req.params;
@@ -16,32 +18,58 @@ export const improveBullet = async (req, res) => {
         throw new AppError("Resume not found", 404);
     }
 
+    // Atomic Credit Deduction before AI Processing
+    await deductCredits({
+        userId: req.user._id,
+        amount: CREDIT_COSTS.BULLET_IMPROVER,
+        type: "ai_usage",
+        action: "Bullet Improver",
+        reason: `Bullet Improvement for "${resume.originalName}"`,
+        referenceId: resume._id.toString(),
+    });
+
     const effectiveRole = customRole || resume.targetRole;
     const effectiveJd = customJd || resume.jobDescription || "";
 
-    const { critique, suggestions } = await improveBulletWithAi({
-        originalBullet,
-        targetRole: effectiveRole,
-        jobDescription: effectiveJd,
-    });
+    try {
+        const { critique, suggestions } = await improveBulletWithAi({
+            originalBullet,
+            targetRole: effectiveRole,
+            jobDescription: effectiveJd,
+        });
 
-    const bulletRecord = await BulletImprovement.create({
-        userId: req.user._id,
-        resumeId: resume._id,
-        originalBullet,
-        targetRole: effectiveRole,
-        jobDescription: effectiveJd,
-        critique,
-        suggestions,
-        status: "pending",
-        history: [{ suggestions }],
-    });
+        const bulletRecord = await BulletImprovement.create({
+            userId: req.user._id,
+            resumeId: resume._id,
+            originalBullet,
+            targetRole: effectiveRole,
+            jobDescription: effectiveJd,
+            critique,
+            suggestions,
+            status: "pending",
+            history: [{ suggestions }],
+        });
 
-    return res.status(201).json({
-        success: true,
-        message: "Bullet improvement generated",
-        bullet: bulletRecord,
-    });
+        return res.status(201).json({
+            success: true,
+            message: "Bullet improvement generated",
+            bullet: bulletRecord,
+        });
+    } catch (error) {
+        // Automatic refund on failure
+        try {
+            await refundCredits({
+                userId: req.user._id,
+                amount: CREDIT_COSTS.BULLET_IMPROVER,
+                action: "Bullet Improver Failure Refund",
+                reason: `Automatic refund for failed Bullet Improver (${error.message})`,
+                referenceId: resume._id.toString(),
+            });
+        } catch (refundErr) {
+            console.error("Failed to refund credits:", refundErr);
+        }
+        throw error;
+    }
 };
 
 export const getBulletHistory = async (req, res) => {
@@ -109,22 +137,47 @@ export const regenerateBullet = async (req, res) => {
         throw new AppError("Bullet record not found", 404);
     }
 
-    const { critique, suggestions } = await improveBulletWithAi({
-        originalBullet: bullet.originalBullet,
-        targetRole: bullet.targetRole,
-        jobDescription: bullet.jobDescription,
+    // Atomic Credit Deduction
+    await deductCredits({
+        userId: req.user._id,
+        amount: CREDIT_COSTS.BULLET_IMPROVER,
+        type: "ai_usage",
+        action: "Bullet Regenerate",
+        reason: `Regeneration of Bullet Improvement for "${bullet.originalBullet.slice(0, 30)}..."`,
+        referenceId: resumeId,
     });
 
-    bullet.critique = critique;
-    bullet.suggestions = suggestions;
-    bullet.status = "pending";
-    bullet.history.push({ suggestions });
+    try {
+        const { critique, suggestions } = await improveBulletWithAi({
+            originalBullet: bullet.originalBullet,
+            targetRole: bullet.targetRole,
+            jobDescription: bullet.jobDescription,
+        });
 
-    await bullet.save();
+        bullet.critique = critique;
+        bullet.suggestions = suggestions;
+        bullet.status = "pending";
+        bullet.history.push({ suggestions });
 
-    return res.status(200).json({
-        success: true,
-        message: "Bullet suggestions regenerated",
-        bullet,
-    });
+        await bullet.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Bullet suggestions regenerated",
+            bullet,
+        });
+    } catch (error) {
+        try {
+            await refundCredits({
+                userId: req.user._id,
+                amount: CREDIT_COSTS.BULLET_IMPROVER,
+                action: "Bullet Regenerate Failure Refund",
+                reason: `Automatic refund for failed Bullet Regenerate (${error.message})`,
+                referenceId: resumeId,
+            });
+        } catch (refundErr) {
+            console.error("Failed to refund credits:", refundErr);
+        }
+        throw error;
+    }
 };
