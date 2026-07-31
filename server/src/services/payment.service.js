@@ -20,6 +20,7 @@ export const PLANS = {
         id: "PRO",
         name: "PRO",
         price: 199,
+        priceId: env.STRIPE_PRICE_PRO || null,
         currency: "INR",
         credits: 250,
         features: ["250 Monthly Credits", "Priority AI Analysis", "ATS Keyword Matcher", "Bullet Improvement Engine"],
@@ -28,6 +29,7 @@ export const PLANS = {
         id: "PREMIUM",
         name: "PREMIUM",
         price: 499,
+        priceId: env.STRIPE_PRICE_PREMIUM || null,
         currency: "INR",
         credits: 1000,
         features: ["1000 Monthly Credits", "Everything in Pro", "Unlimited Project Diagnostics", "Priority Support"],
@@ -37,11 +39,12 @@ export const PLANS = {
 export const createCheckoutSession = async (user, planId) => {
     const plan = PLANS[planId];
     if (!plan || planId === "FREE") {
-        throw new AppError("Invalid subscription plan", 400);
+        throw new AppError("Invalid subscription plan selected.", 400);
     }
 
-    if (!user.stripeCustomerId) {
-        const customerId = await stripeProvider.createCustomer({
+    let customerId = user.stripeCustomerId;
+    if (!customerId) {
+        customerId = await stripeProvider.createCustomer({
             email: user.email,
             name: user.name,
             userId: user._id,
@@ -52,9 +55,10 @@ export const createCheckoutSession = async (user, planId) => {
 
     const clientUrl = env.CLIENT_URL || "http://localhost:5173";
     const session = await stripeProvider.createCheckoutSession({
-        customerId: user.stripeCustomerId,
+        customerId,
         plan: planId,
         amount: plan.price,
+        priceId: plan.priceId,
         userId: user._id,
         successUrl: `${clientUrl}/subscription`,
         cancelUrl: `${clientUrl}/subscription`,
@@ -79,13 +83,13 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
     const user = await User.findById(userId);
 
     if (!user) {
-        throw new AppError("User not found for payment fulfillment", 404);
+        throw new AppError("User not found for payment fulfillment.", 404);
     }
 
-    // Webhook Idempotency Check
+    // Webhook & Session Fulfillment Idempotency Check
     let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
     if (transaction && transaction.status === "completed") {
-        logger.info({ sessionId, userId }, "Duplicate webhook or session verification skipped");
+        logger.info({ sessionId, userId }, "Duplicate fulfillment request ignored (Idempotency)");
         return { user, transaction };
     }
 
@@ -120,10 +124,11 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         type: "subscription",
         balanceAfter: user.credits,
         action: "Subscription Purchased",
-        reason: `${plan.name} Plan Purchased (Stripe Session ${sessionId.slice(0, 12)}...)`,
+        reason: `${plan.name} Plan Purchased via Stripe (Session ${sessionId.slice(0, 12)}...)`,
         referenceId: transaction._id.toString(),
     });
-    
+
+    // Real-time Socket Emission to Private User Room user:{userId}
     emitToUser(userId, "subscription:updated", {
         plan: plan.id,
         credits: user.credits,
@@ -160,7 +165,7 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         plan: plan.id,
     });
 
-    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "Subscription payment fulfilled successfully with real-time socket events");
+    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "Subscription payment fulfilled and database updated cleanly.");
 
     return { user, transaction };
 };
