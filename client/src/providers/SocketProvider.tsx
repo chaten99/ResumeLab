@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,15 +16,62 @@ const SocketContext = createContext<SocketContextType>({
 
 export const useSocketContext = () => useContext(SocketContext);
 
+function getSocketBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  try {
+    const url = new URL(raw);
+    return url.origin;
+  } catch {
+    return raw.replace(/\/api\/?$/, "") || "http://localhost:5000";
+  }
+}
+
 export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
   const queryClient = useQueryClient();
   const { data: userResponse } = useCurrentUser();
   const user = userResponse?.user;
+  const userId = user?.id || user?._id;
+
+  const qcRef = useRef(queryClient);
+  qcRef.current = queryClient;
+
+  const handleNewNotification = useCallback((data: { notification: any; unreadCount: number }) => {
+    const newNotif = data.notification || data;
+    const qc = qcRef.current;
+
+    qc.setQueryData(["user", "notifications"], (oldData: any) => {
+      if (!oldData) {
+        return { success: true, notifications: [newNotif], unreadCount: data.unreadCount ?? 1 };
+      }
+      const exists = oldData.notifications?.some((n: any) => n._id === newNotif._id);
+      if (exists) return oldData;
+      return {
+        ...oldData,
+        notifications: [newNotif, ...(oldData.notifications || [])],
+        unreadCount: typeof data.unreadCount === "number" ? data.unreadCount : (oldData.unreadCount || 0) + 1,
+      };
+    });
+
+    qc.invalidateQueries({ queryKey: ["user", "activities"] });
+
+    if (newNotif.type === "success") {
+      toast.success(newNotif.title, { description: newNotif.message });
+    } else if (newNotif.type === "error") {
+      toast.error(newNotif.title, { description: newNotif.message });
+    } else if (newNotif.type === "warning") {
+      toast.warning(newNotif.title, { description: newNotif.message });
+    } else {
+      toast.info(newNotif.title, { description: newNotif.message });
+    }
+  }, []);
 
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    if (!userId) return;
+
+    const socketUrl = getSocketBaseUrl();
+
     const socketInstance = io(socketUrl, {
       withCredentials: true,
       transports: ["websocket", "polling"],
@@ -33,11 +80,9 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     socketInstance.on("connect", () => {
       setIsConnected(true);
-      if (user?.id) {
-        socketInstance.emit("join", user.id);
-        if (user.role === "admin") {
-          socketInstance.emit("joinAdmin");
-        }
+      socketInstance.emit("join", userId.toString());
+      if (user?.role === "admin") {
+        socketInstance.emit("joinAdmin");
       }
     });
 
@@ -45,10 +90,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsConnected(false);
     });
 
+    socketInstance.on("connect_error", (err) => {
+      console.error("[Socket] Connection error:", err.message);
+    });
+
     socketInstance.on("credits:updated", (data) => {
-      queryClient.invalidateQueries({ queryKey: ["auth"] });
-      queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["auth"] });
+      qc.invalidateQueries({ queryKey: ["user", "credits"] });
+      qc.invalidateQueries({ queryKey: ["subscription", "status"] });
 
       if (data.change && data.change > 0) {
         toast.success(`+${data.change} Credits Added!`, {
@@ -58,9 +108,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     socketInstance.on("subscription:updated", (data) => {
-      queryClient.invalidateQueries({ queryKey: ["auth"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
-      queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["auth"] });
+      qc.invalidateQueries({ queryKey: ["subscription", "status"] });
+      qc.invalidateQueries({ queryKey: ["billing", "history"] });
 
       toast.success("Subscription Updated!", {
         description: `Your active plan is now ${data.plan}.`,
@@ -68,60 +119,93 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     socketInstance.on("user:updated", () => {
-      queryClient.invalidateQueries({ queryKey: ["auth"] });
-      queryClient.invalidateQueries({ queryKey: ["user", "profile"] });
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["auth"] });
+      qc.invalidateQueries({ queryKey: ["user", "profile"] });
     });
 
-    socketInstance.on("notification:created", (data) => {
-      if (data.type === "success") {
-        toast.success(data.title, { description: data.message });
-      } else if (data.type === "error") {
-        toast.error(data.title, { description: data.message });
-      } else {
-        toast.info(data.title, { description: data.message });
-      }
+    socketInstance.on("notification:new", handleNewNotification);
+
+    socketInstance.on("notification:updated", (data: { notificationId?: string; allRead?: boolean; unreadCount: number }) => {
+      qcRef.current.setQueryData(["user", "notifications"], (oldData: any) => {
+        if (!oldData) return oldData;
+        if (data.allRead) {
+          return {
+            ...oldData,
+            notifications: oldData.notifications?.map((n: any) => ({ ...n, read: true })),
+            unreadCount: 0,
+          };
+        }
+        return {
+          ...oldData,
+          notifications: oldData.notifications?.map((n: any) =>
+            n._id === data.notificationId ? { ...n, read: true } : n
+          ),
+          unreadCount: data.unreadCount,
+        };
+      });
+    });
+
+    socketInstance.on("notification:deleted", (data: { notificationId: string; unreadCount: number }) => {
+      qcRef.current.setQueryData(["user", "notifications"], (oldData: any) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          notifications: oldData.notifications?.filter((n: any) => n._id !== data.notificationId),
+          unreadCount: data.unreadCount,
+        };
+      });
+    });
+
+    socketInstance.on("activity:created", () => {
+      qcRef.current.invalidateQueries({ queryKey: ["user", "activities"] });
+    });
+
+    socketInstance.on("resume:uploaded", () => {
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["resumes"] });
+      qc.invalidateQueries({ queryKey: ["user", "activities"] });
+    });
+
+    socketInstance.on("resume:deleted", () => {
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["resumes"] });
+      qc.invalidateQueries({ queryKey: ["user", "activities"] });
     });
 
     socketInstance.on("analysis:started", () => {
-      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      qcRef.current.invalidateQueries({ queryKey: ["resumes"] });
       toast.info("AI Analysis Started", { description: "Processing resume metrics..." });
     });
 
     socketInstance.on("analysis:completed", () => {
-      queryClient.invalidateQueries({ queryKey: ["resumes"] });
-      toast.success("AI Analysis Completed!", { description: "Detailed diagnostics ready." });
+      const qc = qcRef.current;
+      qc.invalidateQueries({ queryKey: ["resumes"] });
+      qc.invalidateQueries({ queryKey: ["user", "activities"] });
     });
 
-    socketInstance.on("analysis:failed", (data) => {
-      queryClient.invalidateQueries({ queryKey: ["resumes"] });
-      toast.error("AI Analysis Failed", { description: data.errorMessage || "Credits refunded." });
+    socketInstance.on("analysis:failed", () => {
+      qcRef.current.invalidateQueries({ queryKey: ["resumes"] });
     });
 
     socketInstance.on("admin:telemetry", () => {
       if (user?.role === "admin") {
-        queryClient.invalidateQueries({ queryKey: ["admin"] });
+        qcRef.current.invalidateQueries({ queryKey: ["admin"] });
       }
     });
 
-    setSocket(socketInstance);
+    socketRef.current = socketInstance;
 
     return () => {
-      socketInstance.off("connect");
-      socketInstance.off("disconnect");
-      socketInstance.off("credits:updated");
-      socketInstance.off("subscription:updated");
-      socketInstance.off("user:updated");
-      socketInstance.off("notification:created");
-      socketInstance.off("analysis:started");
-      socketInstance.off("analysis:completed");
-      socketInstance.off("analysis:failed");
-      socketInstance.off("admin:telemetry");
+      socketInstance.removeAllListeners();
       socketInstance.disconnect();
+      socketRef.current = null;
+      setIsConnected(false);
     };
-  }, [user?.id, user?.role, queryClient]);
+  }, [userId, user?.role]);
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected }}>
+    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
       {children}
     </SocketContext.Provider>
   );

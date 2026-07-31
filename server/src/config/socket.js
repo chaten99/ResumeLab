@@ -74,7 +74,9 @@ export const getIo = () => {
 
 export const emitToUser = (userId, event, data) => {
   if (!io || !userId) return;
-  io.to(`user:${userId.toString()}`).emit(event, data);
+  const room = `user:${userId.toString()}`;
+  logger.info({ room, event }, "[Socket] emitToUser");
+  io.to(room).emit(event, data);
 };
 
 export const emitToAdmin = (event, data) => {

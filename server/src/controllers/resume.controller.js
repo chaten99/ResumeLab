@@ -2,6 +2,9 @@ import Resume from "../models/resume.model.js";
 import Analysis from "../models/analysis.model.js";
 import AppError from "../utils/AppError.js";
 import { parseResumePdf } from "../services/resumeParser.service.js";
+import { recordActivity } from "../services/activity.service.js";
+import { createInAppNotification } from "../services/notification.service.js";
+import { emitToUser } from "../config/socket.js";
 
 export const uploadResume = async (req, res) => {
     if (!req.file) {
@@ -19,6 +22,22 @@ export const uploadResume = async (req, res) => {
         pageCount,
         status: "parsed",
     });
+
+    await recordActivity({
+        userId: req.user._id,
+        type: "resume_uploaded",
+        description: `Uploaded resume "${resume.originalName}" (${targetRole || "General"})`,
+        metadata: { resumeId: resume._id },
+    });
+
+    await createInAppNotification({
+        userId: req.user._id,
+        title: "Resume Uploaded",
+        message: `Successfully uploaded and parsed "${resume.originalName}".`,
+        type: "info",
+    });
+
+    emitToUser(req.user._id, "resume:uploaded", { resume });
 
     return res.status(201).json({
         success: true,
@@ -80,6 +99,22 @@ export const deleteResume = async (req, res) => {
         resumeId: req.params.id,
         userId: req.user._id,
     });
+
+    await recordActivity({
+        userId: req.user._id,
+        type: "resume_deleted",
+        description: `Deleted resume "${resume.originalName}"`,
+        metadata: { resumeId: resume._id },
+    });
+
+    await createInAppNotification({
+        userId: req.user._id,
+        title: "Resume Deleted",
+        message: `Deleted resume "${resume.originalName}".`,
+        type: "warning",
+    });
+
+    emitToUser(req.user._id, "resume:deleted", { resumeId: resume._id });
 
     return res.status(200).json({
         success: true,

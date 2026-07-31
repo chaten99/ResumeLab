@@ -43,7 +43,6 @@ export function DeleteResumeDialog({
 
     try {
       await deleteMutation.mutateAsync(resume.id);
-      toast.success("Resume deleted");
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch {

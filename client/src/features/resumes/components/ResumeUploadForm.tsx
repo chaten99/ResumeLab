@@ -53,7 +53,6 @@ export const ResumeUploadForm: React.FC<ResumeUploadFormProps> = ({ onSuccess })
         jobDescription: data.jobDescription,
       });
 
-      toast.success("Resume uploaded");
       if (onSuccess && response.resume) {
         onSuccess(response.resume);
       }

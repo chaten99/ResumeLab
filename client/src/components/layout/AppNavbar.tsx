@@ -2,6 +2,7 @@ import React from "react";
 import { Link, NavLink } from "react-router-dom";
 import { FileText, Zap, ShieldCheck } from "lucide-react";
 import { UserMenu } from "./UserMenu";
+import { NotificationCenter } from "./NotificationCenter";
 import { useCurrentUser } from "@/features/auth/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 
@@ -96,6 +97,8 @@ export const AppNavbar: React.FC = () => {
               <span>{credits} Credits</span>
             </Link>
           )}
+
+          {user && <NotificationCenter />}
           <UserMenu />
         </div>
       </div>

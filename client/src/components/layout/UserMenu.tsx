@@ -115,7 +115,7 @@ export const UserMenu: React.FC = () => {
 
         <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer text-xs">
           <UserIcon className="size-3.5 mr-2 text-muted-foreground" />
-          <span>Profile Settings</span>
+          <span>Profile</span>
         </DropdownMenuItem>
 
         {isAdmin ? (

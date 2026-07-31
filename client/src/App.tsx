@@ -10,10 +10,12 @@ import ResetPassword from "@/pages/authPages/ResetPassword";
 import Dashboard from "@/pages/Dashboard";
 import UploadResume from "@/pages/UploadResume";
 import ResumeDetails from "@/pages/ResumeDetails";
+import ResumeHistory from "@/pages/ResumeHistory";
 import Profile from "@/pages/Profile";
 import Billing from "@/pages/Billing";
 import Subscription from "@/pages/Subscription";
 import Credits from "@/pages/Credits";
+import NotFound from "@/pages/errors/NotFound";
 
 import {
   AdminUsers,
@@ -71,13 +73,13 @@ function App() {
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/billing" element={<Billing />} />
             <Route path="/subscription" element={<Subscription />} />
             <Route path="/credits" element={<Credits />} />
             <Route path="/resumes/new" element={<UploadResume />} />
+            <Route path="/resumes/history" element={<ResumeHistory />} />
             <Route path="/analyze" element={<UploadResume />} />
             <Route path="/resumes/:id" element={<ResumeDetails />} />
 
@@ -93,7 +95,8 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/404" element={<NotFound />} />
+        <Route path="*" element={<Navigate to="/404" replace />} />
       </Routes>
 
       <InsufficientCreditsModal
