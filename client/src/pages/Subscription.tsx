@@ -1,7 +1,8 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Check, Sparkles, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,8 +11,28 @@ import { useCurrentSubscription, useStartCheckout } from "@/features/subscriptio
 
 export const Subscription: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { data: subData, isLoading } = useCurrentSubscription();
   const checkoutMutation = useStartCheckout();
+
+  useEffect(() => {
+    if (searchParams.get("success") === "true") {
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
+      queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
+      queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
+      toast.success("Payment Successful!", {
+        description: "Your subscription and AI credits have been updated automatically.",
+      });
+      setSearchParams({}, { replace: true });
+    } else if (searchParams.get("canceled") === "true") {
+      toast.info("Checkout Canceled", {
+        description: "Your plan remains unchanged.",
+      });
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, queryClient]);
 
   const currentPlan = subData?.subscription?.plan || "FREE";
   const plans = subData?.plans || [

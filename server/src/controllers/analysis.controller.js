@@ -90,6 +90,12 @@ export const analyzeResume = async (req, res) => {
             analysis: currentAnalysis,
         });
 
+        emitToUser(req.user._id, "notification:created", {
+            title: "Analysis Completed",
+            message: `AI Analysis completed for "${currentResume.originalName}"`,
+            type: "success",
+        });
+
         return res.status(200).json({
             success: true,
             message: "Resume analyzed successfully",
@@ -123,6 +129,12 @@ export const analyzeResume = async (req, res) => {
             emitToUser(req.user._id, "analysis:failed", {
                 resumeId: currentResume._id,
                 errorMessage: currentAnalysis.errorMessage,
+            });
+
+            emitToUser(req.user._id, "notification:created", {
+                title: "Analysis Failed",
+                message: `Analysis failed for "${currentResume.originalName}". Credits refunded.`,
+                type: "error",
             });
         }
 

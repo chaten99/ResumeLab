@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import AppError from "../utils/AppError.js";
 import { getCreditHistory } from "../services/creditLedger.service.js";
+import { emitToUser } from "../config/socket.js";
 
 export const getProfile = async (req, res) => {
     const user = await User.findById(req.user._id).select("-password").lean();
@@ -22,6 +23,22 @@ export const updateProfile = async (req, res) => {
     const user = await User.findById(req.user._id);
     user.name = name.trim();
     await user.save();
+
+    emitToUser(user._id, "user:updated", {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        plan: user.plan,
+        credits: user.credits,
+        isEmailVerified: user.isEmailVerified,
+    });
+
+    emitToUser(user._id, "notification:created", {
+        title: "Profile Updated",
+        message: "Your profile name was updated successfully.",
+        type: "success",
+    });
 
     return res.status(200).json({
         success: true,
@@ -53,6 +70,12 @@ export const changePassword = async (req, res) => {
 
     user.password = newPassword;
     await user.save();
+
+    emitToUser(user._id, "notification:created", {
+        title: "Password Changed",
+        message: "Your account password was changed successfully.",
+        type: "success",
+    });
 
     return res.status(200).json({
         success: true,

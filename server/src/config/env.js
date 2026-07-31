@@ -13,6 +13,8 @@ const envSchema = z.object({
     JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().default("ResumeLab <onboarding@resend.dev>"),
+    STRIPE_SECRET_KEY: z.string().optional(),
+    STRIPE_WEBHOOK_SECRET: z.string().optional(),
     OTP_SECRET: z
         .string()
         .min(32, "OTP_SECRET must be at least 32 characters"),
