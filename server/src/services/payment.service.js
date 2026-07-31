@@ -42,16 +42,8 @@ export const createCheckoutSession = async (user, planId) => {
         throw new AppError("Invalid subscription plan selected.", 400);
     }
 
-    let customerId = user.stripeCustomerId;
-    if (!customerId) {
-        customerId = await stripeProvider.createCustomer({
-            email: user.email,
-            name: user.name,
-            userId: user._id,
-        });
-        user.stripeCustomerId = customerId;
-        await user.save();
-    }
+    // Safely retrieve or create real Stripe Customer ID
+    const customerId = await stripeProvider.getOrCreateCustomer(user);
 
     const clientUrl = env.CLIENT_URL || "http://localhost:5173";
     const session = await stripeProvider.createCheckoutSession({
@@ -89,9 +81,13 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
     // Webhook & Session Fulfillment Idempotency Check
     let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
     if (transaction && transaction.status === "completed") {
-        logger.info({ sessionId, userId }, "Duplicate fulfillment request ignored (Idempotency)");
+        logger.info({ sessionId, userId }, "[FULFILLMENT] Webhook session already fulfilled previously (Idempotent execution)");
         return { user, transaction };
     }
+
+    // 1. Update MongoDB User Subscription & Credits
+    const oldPlan = user.plan;
+    const oldCredits = user.credits;
 
     user.plan = plan.id;
     user.subscriptionStatus = "active";
@@ -100,6 +96,16 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
     user.credits += plan.credits;
     await user.save();
 
+    logger.info({
+        userId: user._id,
+        oldPlan,
+        newPlan: user.plan,
+        oldCredits,
+        newCredits: user.credits,
+        status: user.subscriptionStatus,
+    }, "[FULFILLMENT STEP 1] MongoDB User Document Updated & Saved");
+
+    // 2. Record Transaction Document
     if (!transaction) {
         transaction = await Transaction.create({
             userId: user._id,
@@ -118,6 +124,9 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         await transaction.save();
     }
 
+    logger.info({ transactionId: transaction._id }, "[FULFILLMENT STEP 2] Transaction Record Saved in MongoDB");
+
+    // 3. Record Credit Ledger Document
     const ledgerEntry = await CreditLedger.create({
         userId: user._id,
         amount: plan.credits,
@@ -128,7 +137,9 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         referenceId: transaction._id.toString(),
     });
 
-    // Real-time Socket Emission to Private User Room user:{userId}
+    logger.info({ ledgerId: ledgerEntry._id, balanceAfter: ledgerEntry.balanceAfter }, "[FULFILLMENT STEP 3] Credit Ledger Audit Entry Saved in MongoDB");
+
+    // 4. Emit Real-time Socket Events to Private User Room user:{userId}
     emitToUser(userId, "subscription:updated", {
         plan: plan.id,
         credits: user.credits,
@@ -165,7 +176,7 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         plan: plan.id,
     });
 
-    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "Subscription payment fulfilled and database updated cleanly.");
+    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "[FULFILLMENT STEP 4] Real-time Socket Events Emitted to user room");
 
     return { user, transaction };
 };

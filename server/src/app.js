@@ -14,6 +14,7 @@ import subscriptionRoutes from "./routes/subscription.routes.js";
 import billingRoutes from "./routes/billing.routes.js";
 import userRoutes from "./routes/user.routes.js";
 import adminRoutes from "./routes/admin.routes.js";
+import { handleStripeWebhook } from "./controllers/subscription.controller.js";
 
 const app = express();
 
@@ -26,7 +27,7 @@ app.use(
   })
 );
 
-app.use("/api/subscription/webhook", express.raw({ type: "application/json" }));
+app.post("/api/payments/webhook", express.raw({ type: "application/json" }), handleStripeWebhook);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
