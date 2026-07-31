@@ -28,15 +28,12 @@ export const Subscription: React.FC = () => {
       toast.loading("Verifying subscription status...");
       verifySessionMutation
         .mutateAsync(sessionId)
-        .then((res) => {
+        .then(() => {
           toast.dismiss();
           queryClient.invalidateQueries({ queryKey: ["auth"] });
           queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
           queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
           queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
-          toast.success("Subscription Activated!", {
-            description: `Successfully upgraded to ${res.plan} plan with ${res.credits} credits.`,
-          });
           setSearchParams({}, { replace: true });
         })
         .catch((err: any) => {

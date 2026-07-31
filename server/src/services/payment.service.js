@@ -6,6 +6,8 @@ import { stripeProvider } from "../providers/stripe.provider.js";
 import { env } from "../config/env.js";
 import logger from "../config/logger.js";
 import { emitToUser, emitToAdmin } from "../config/socket.js";
+import { createInAppNotification } from "./notification.service.js";
+import { recordActivity } from "./activity.service.js";
 
 export const PLANS = {
     FREE: {
@@ -42,6 +44,7 @@ export const createCheckoutSession = async (user, planId) => {
         throw new AppError("Invalid subscription plan selected.", 400);
     }
 
+    // SERVER VALIDATION FOR PLAN TRANSITIONS
     if (user.subscriptionStatus === "active") {
         if (user.plan === "PREMIUM") {
             throw new AppError("You are already subscribed to the highest tier (PREMIUM).", 400);
@@ -51,6 +54,7 @@ export const createCheckoutSession = async (user, planId) => {
         }
     }
 
+    // Safely retrieve or create real Stripe Customer ID
     const customerId = await stripeProvider.getOrCreateCustomer(user);
 
     const clientUrl = env.CLIENT_URL || "http://localhost:5173";
@@ -86,12 +90,14 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         throw new AppError("User not found for payment fulfillment.", 404);
     }
 
+    // Webhook & Session Fulfillment Idempotency Check
     let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
     if (transaction && transaction.status === "completed") {
         logger.info({ sessionId, userId }, "[FULFILLMENT] Payment already completed previously (Idempotent)");
         return { user, transaction };
     }
 
+    // 1. Update User Subscription & Add Credits
     const oldPlan = user.plan;
     const oldCredits = user.credits;
 
@@ -130,6 +136,7 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         await transaction.save();
     }
 
+    // 3. Record Credit Ledger Entry (+250 or +1000 credits)
     const ledgerEntry = await CreditLedger.create({
         userId: user._id,
         amount: plan.credits,
@@ -140,6 +147,22 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         referenceId: transaction._id.toString(),
     });
 
+    // 4. Record Activity & In-App Notification (Persisted in MongoDB + Emitted over Socket)
+    await recordActivity({
+        userId: user._id,
+        type: "subscription_purchased",
+        description: `Subscribed to ${plan.name} plan (+${plan.credits} credits)`,
+        metadata: { plan: plan.id, amount: transaction.amount },
+    });
+
+    await createInAppNotification({
+        userId: user._id,
+        title: "Subscription Upgraded",
+        message: `Successfully subscribed to ${plan.name} plan! ${plan.credits} credits added.`,
+        type: "success",
+    });
+
+    // 5. Emit Real-time Socket Events to Private User Room user:{userId}
     emitToUser(userId, "subscription:updated", {
         plan: plan.id,
         credits: user.credits,
@@ -163,12 +186,6 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         subscriptionStatus: "active",
     });
 
-    emitToUser(userId, "notification:created", {
-        title: "Subscription Upgraded",
-        message: `Successfully subscribed to ${plan.name} plan! ${plan.credits} credits added.`,
-        type: "success",
-    });
-
     emitToAdmin("admin:telemetry", {
         type: "new_subscription",
         userId,
@@ -184,12 +201,14 @@ export const verifyAndFulfillSession = async (sessionId, fallbackUserId = null) 
         throw new AppError("Session ID is required for verification", 400);
     }
 
+    // Check if transaction is already completed
     let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
     if (transaction && transaction.status === "completed") {
         const user = await User.findById(transaction.userId);
         return { user, transaction };
     }
 
+    // Verify with Stripe API
     const stripe = stripeProvider.getStripeInstance();
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { User as UserIcon, Lock, LogOut, Zap, Sparkles, ShieldCheck } from "lucide-react";
+import { User as UserIcon, Lock, LogOut, Zap, Sparkles, ShieldCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { useCurrentUser, useLogout } from "@/features/auth/hooks/useAuth";
-import { useUpdateProfile, useChangePassword } from "@/features/user/hooks/useUser";
+import { useUpdateProfile, useChangePassword, useDeactivateAccount } from "@/features/user/hooks/useUser";
 
 export const Profile: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export const Profile: React.FC = () => {
   const logoutMutation = useLogout();
   const updateProfileMutation = useUpdateProfile();
   const changePasswordMutation = useChangePassword();
+  const deactivateAccountMutation = useDeactivateAccount();
 
   const user = userResponse?.user;
   const [name, setName] = useState(user?.name || "");
@@ -41,7 +42,6 @@ export const Profile: React.FC = () => {
     }
     try {
       await updateProfileMutation.mutateAsync({ name: name.trim() });
-      toast.success("Name updated successfully!");
     } catch {
       toast.error("Failed to update profile name.");
     }
@@ -64,7 +64,6 @@ export const Profile: React.FC = () => {
 
     try {
       await changePasswordMutation.mutateAsync({ currentPassword, newPassword });
-      toast.success("Password changed successfully!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -83,16 +82,28 @@ export const Profile: React.FC = () => {
     }
   };
 
+  const handleDeactivate = async () => {
+    if (!confirm("Are you sure you want to deactivate your account? You will be logged out immediately.")) return;
+    try {
+      await deactivateAccountMutation.mutateAsync();
+      toast.success("Account deactivated.");
+      await logoutMutation.mutateAsync();
+      navigate("/login", { replace: true });
+    } catch {
+      toast.error("Failed to deactivate account.");
+    }
+  };
+
   const isAdmin = user.role === "admin";
 
   return (
     <PageTransition className="container mx-auto px-4 py-8 max-w-2xl space-y-6 font-sans">
       <div className="border-b border-border pb-4">
         <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
-          <UserIcon className="size-6 text-primary" /> Account Settings &amp; Profile
+          <UserIcon className="size-6 text-primary" /> Account Profile &amp; Credentials
         </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Manage your account credentials, security preferences, and active subscription.
+          Manage your personal details, update password security, and control account status.
         </p>
       </div>
 
@@ -210,13 +221,29 @@ export const Profile: React.FC = () => {
         </form>
       </div>
 
+      {/* Danger Zone: Account Deactivation */}
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 shadow-2xs space-y-4">
+        <h2 className="text-sm font-bold text-destructive flex items-center gap-2">
+          <ShieldAlert className="size-4" /> Danger Zone
+        </h2>
+        <div className="flex items-center justify-between flex-wrap gap-4 text-xs">
+          <div>
+            <p className="font-bold text-foreground">Deactivate Account</p>
+            <p className="text-[11px] text-muted-foreground">Deactivating will disable your login and terminate active sessions.</p>
+          </div>
+          <Button size="sm" variant="destructive" onClick={handleDeactivate} disabled={deactivateAccountMutation.isPending} className="text-xs font-semibold h-8 gap-1.5">
+            <AlertTriangle className="size-3.5" /> Deactivate Account
+          </Button>
+        </div>
+      </div>
+
       {/* Logout Action */}
-      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 shadow-2xs flex items-center justify-between">
+      <div className="rounded-xl border bg-card p-6 shadow-2xs flex items-center justify-between">
         <div>
           <h2 className="text-xs font-bold text-foreground">Sign out of ResumeLab</h2>
           <p className="text-[11px] text-muted-foreground">Terminate active session on this device.</p>
         </div>
-        <Button size="sm" variant="destructive" onClick={handleLogout} disabled={logoutMutation.isPending} className="text-xs font-semibold h-8 gap-1.5">
+        <Button size="sm" variant="outline" onClick={handleLogout} disabled={logoutMutation.isPending} className="text-xs font-semibold h-8 gap-1.5">
           <LogOut className="size-3.5" /> Log out
         </Button>
       </div>

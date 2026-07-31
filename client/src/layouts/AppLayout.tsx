@@ -16,7 +16,7 @@ export const AppLayout: React.FC = () => {
           <p className="text-center text-xs text-muted-foreground sm:text-sm">
             Designed &amp; developed by{" "}
             <a
-              href="https://chaten.netlify.app"
+              href="https://chaten.in"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-foreground underline-offset-4 transition-colors duration-200 hover:text-primary hover:underline"

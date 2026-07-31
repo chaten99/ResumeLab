@@ -5,6 +5,8 @@ import { runResumeAnalysis } from "../services/analysis.service.js";
 import { emitToUser } from "../config/socket.js";
 import { deductCredits, refundCredits } from "../services/creditLedger.service.js";
 import { CREDIT_COSTS } from "../config/creditCosts.js";
+import { createInAppNotification } from "../services/notification.service.js";
+import { recordActivity } from "../services/activity.service.js";
 
 export const analyzeResume = async (req, res) => {
     const { id: resumeId } = req.params;
@@ -85,15 +87,23 @@ export const analyzeResume = async (req, res) => {
         currentResume.status = "completed";
         await currentResume.save();
 
-        emitToUser(req.user._id, "analysis:completed", {
-            resumeId: currentResume._id,
-            analysis: currentAnalysis,
+        await recordActivity({
+            userId: req.user._id,
+            type: "resume_analyzed",
+            description: `Completed AI Resume Analysis for "${currentResume.originalName}"`,
+            metadata: { resumeId: currentResume._id, score: result.scores?.overallScore },
         });
 
-        emitToUser(req.user._id, "notification:created", {
+        await createInAppNotification({
+            userId: req.user._id,
             title: "Analysis Completed",
             message: `AI Analysis completed for "${currentResume.originalName}"`,
             type: "success",
+        });
+
+        emitToUser(req.user._id, "analysis:completed", {
+            resumeId: currentResume._id,
+            analysis: currentAnalysis,
         });
 
         return res.status(200).json({
@@ -126,15 +136,16 @@ export const analyzeResume = async (req, res) => {
             currentResume.status = "failed";
             await currentResume.save();
 
-            emitToUser(req.user._id, "analysis:failed", {
-                resumeId: currentResume._id,
-                errorMessage: currentAnalysis.errorMessage,
-            });
-
-            emitToUser(req.user._id, "notification:created", {
+            await createInAppNotification({
+                userId: req.user._id,
                 title: "Analysis Failed",
                 message: `Analysis failed for "${currentResume.originalName}". Credits refunded.`,
                 type: "error",
+            });
+
+            emitToUser(req.user._id, "analysis:failed", {
+                resumeId: currentResume._id,
+                errorMessage: currentAnalysis.errorMessage,
             });
         }
 

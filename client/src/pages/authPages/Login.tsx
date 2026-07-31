@@ -90,7 +90,9 @@ const Login = () => {
             {...register("email")}
           />
           {errors.email && (
-            <p className="text-xs font-medium text-destructive">{errors.email.message}</p>
+            <p className="text-xs font-medium text-destructive">
+              {errors.email.message}
+            </p>
           )}
         </div>
 

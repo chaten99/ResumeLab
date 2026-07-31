@@ -1,6 +1,18 @@
 import User from "../models/user.model.js";
+import Resume from "../models/resume.model.js";
+import Analysis from "../models/analysis.model.js";
+import Transaction from "../models/transaction.model.js";
+import CreditLedger from "../models/creditLedger.model.js";
 import AppError from "../utils/AppError.js";
 import { getCreditHistory } from "../services/creditLedger.service.js";
+import { recordActivity, getUserActivities } from "../services/activity.service.js";
+import {
+    getUserNotifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    deleteNotification,
+    createInAppNotification,
+} from "../services/notification.service.js";
 import { emitToUser } from "../config/socket.js";
 
 export const getProfile = async (req, res) => {
@@ -24,6 +36,19 @@ export const updateProfile = async (req, res) => {
     user.name = name.trim();
     await user.save();
 
+    await recordActivity({
+        userId: user._id,
+        type: "profile_updated",
+        description: `Updated profile name to "${user.name}"`,
+    });
+
+    await createInAppNotification({
+        userId: user._id,
+        title: "Profile Updated",
+        message: `Your profile name was changed to "${user.name}".`,
+        type: "success",
+    });
+
     emitToUser(user._id, "user:updated", {
         id: user._id,
         name: user.name,
@@ -32,12 +57,6 @@ export const updateProfile = async (req, res) => {
         plan: user.plan,
         credits: user.credits,
         isEmailVerified: user.isEmailVerified,
-    });
-
-    emitToUser(user._id, "notification:created", {
-        title: "Profile Updated",
-        message: "Your profile name was updated successfully.",
-        type: "success",
     });
 
     return res.status(200).json({
@@ -71,10 +90,17 @@ export const changePassword = async (req, res) => {
     user.password = newPassword;
     await user.save();
 
-    emitToUser(user._id, "notification:created", {
+    await recordActivity({
+        userId: user._id,
+        type: "password_changed",
+        description: "Account password changed successfully",
+    });
+
+    await createInAppNotification({
+        userId: user._id,
         title: "Password Changed",
-        message: "Your account password was changed successfully.",
-        type: "success",
+        message: "Your account password was updated successfully.",
+        type: "info",
     });
 
     return res.status(200).json({
@@ -105,5 +131,75 @@ export const getUserCredits = async (req, res) => {
         lifetimeEarned,
         lifetimeUsed,
         history,
+    });
+};
+
+export const getActivitiesHandler = async (req, res) => {
+    const activities = await getUserActivities(req.user._id);
+    return res.status(200).json({
+        success: true,
+        activities,
+    });
+};
+
+export const getNotificationsHandler = async (req, res) => {
+    const { notifications, unreadCount } = await getUserNotifications(req.user._id);
+    return res.status(200).json({
+        success: true,
+        notifications,
+        unreadCount,
+    });
+};
+
+export const markNotificationReadHandler = async (req, res) => {
+    const { id } = req.params;
+    await markNotificationAsRead(req.user._id, id);
+    return res.status(200).json({ success: true, message: "Notification marked as read" });
+};
+
+export const markAllNotificationsReadHandler = async (req, res) => {
+    await markAllNotificationsAsRead(req.user._id);
+    return res.status(200).json({ success: true, message: "All notifications marked as read" });
+};
+
+export const deleteNotificationHandler = async (req, res) => {
+    const { id } = req.params;
+    await deleteNotification(req.user._id, id);
+    return res.status(200).json({ success: true, message: "Notification deleted" });
+};
+
+export const exportUserData = async (req, res) => {
+    const userId = req.user._id;
+    const user = await User.findById(userId).select("-password").lean();
+    const resumes = await Resume.find({ userId }).lean();
+    const analyses = await Analysis.find({ userId }).lean();
+    const transactions = await Transaction.find({ userId }).lean();
+    const creditLedger = await CreditLedger.find({ userId }).lean();
+
+    return res.status(200).json({
+        success: true,
+        exportTimestamp: new Date().toISOString(),
+        userData: {
+            profile: user,
+            resumes,
+            analyses,
+            transactions,
+            creditLedger,
+        },
+    });
+};
+
+export const deactivateAccount = async (req, res) => {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
+    user.isDisabled = true;
+    await user.save();
+
+    return res.status(200).json({
+        success: true,
+        message: "Account deactivated successfully",
     });
 };
