@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { env } from "../config/env.js";
 import logger from "../config/logger.js";
+import AppError from "../utils/AppError.js";
 
 class StripeProvider {
     constructor() {
@@ -9,16 +10,20 @@ class StripeProvider {
             : null;
     }
 
-    isConfigured() {
-        return !!this.stripe;
+    getStripeInstance() {
+        if (!this.stripe) {
+            throw new AppError(
+                "Stripe is not configured. Please add a valid STRIPE_SECRET_KEY to your server .env file.",
+                500
+            );
+        }
+        return this.stripe;
     }
 
     async createCustomer({ email, name, userId }) {
-        if (!this.stripe) {
-            return `cus_mock_${userId}`;
-        }
+        const stripe = this.getStripeInstance();
         try {
-            const customer = await this.stripe.customers.create({
+            const customer = await stripe.customers.create({
                 email,
                 name,
                 metadata: { userId: userId.toString() },
@@ -26,37 +31,37 @@ class StripeProvider {
             return customer.id;
         } catch (err) {
             logger.error({ err }, "Stripe createCustomer error");
-            return `cus_mock_${userId}`;
+            throw new AppError(`Failed to create Stripe customer: ${err.message}`, 500);
         }
     }
 
-    async createCheckoutSession({ customerId, plan, amount, userId, successUrl, cancelUrl }) {
-        if (!this.stripe) {
-            const mockSessionId = `cs_test_${Date.now()}`;
-            return {
-                id: mockSessionId,
-                url: `${successUrl}?success=true&session_id=${mockSessionId}`,
-            };
-        }
+    async createCheckoutSession({ customerId, plan, amount, priceId, userId, successUrl, cancelUrl }) {
+        const stripe = this.getStripeInstance();
 
-        const session = await this.stripe.checkout.sessions.create({
-            customer: customerId.startsWith("cus_mock_") ? undefined : customerId,
-            customer_email: customerId.startsWith("cus_mock_") ? undefined : undefined,
+        logger.info({ userId, plan, amount, priceId }, "Creating Stripe Checkout Session");
+
+        const lineItem = priceId
+            ? { price: priceId, quantity: 1 }
+            : {
+                  price_data: {
+                      currency: "inr",
+                      product_data: {
+                          name: `ResumeLab ${plan} Subscription`,
+                          description:
+                              plan === "PRO"
+                                  ? "250 Monthly Credits & Priority AI Engine"
+                                  : "1000 Monthly Credits & Unlimited Diagnostics",
+                      },
+                      unit_amount: amount * 100,
+                  },
+                  quantity: 1,
+              };
+
+        const session = await stripe.checkout.sessions.create({
+            customer: customerId || undefined,
             payment_method_types: ["card"],
-            line_items: [
-                {
-                    price_data: {
-                        currency: "inr",
-                        product_data: {
-                            name: `ResumeLab ${plan} Subscription`,
-                            description: plan === "PRO" ? "250 Monthly Credits & Priority AI Engine" : "1000 Monthly Credits & Unlimited Diagnostics",
-                        },
-                        unit_amount: amount * 100,
-                    },
-                    quantity: 1,
-                },
-            ],
-            mode: "payment",
+            line_items: [lineItem],
+            mode: priceId ? "subscription" : "payment",
             success_url: `${successUrl}?success=true&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${cancelUrl}?canceled=true`,
             client_reference_id: userId.toString(),
@@ -66,14 +71,17 @@ class StripeProvider {
             },
         });
 
+        logger.info({ sessionId: session.id, url: session.url }, "Stripe Checkout Session Created Successfully");
+
         return { id: session.id, url: session.url };
     }
 
     constructWebhookEvent(rawBody, signature) {
-        if (!this.stripe || !env.STRIPE_WEBHOOK_SECRET) {
-            return null;
+        const stripe = this.getStripeInstance();
+        if (!env.STRIPE_WEBHOOK_SECRET) {
+            throw new AppError("STRIPE_WEBHOOK_SECRET is missing in environment variables.", 500);
         }
-        return this.stripe.webhooks.constructEvent(rawBody, signature, env.STRIPE_WEBHOOK_SECRET);
+        return stripe.webhooks.constructEvent(rawBody, signature, env.STRIPE_WEBHOOK_SECRET);
     }
 }
 
