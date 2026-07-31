@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import CreditLedger from "../models/creditLedger.model.js";
 import AppError from "../utils/AppError.js";
+import { emitToUser, emitToAdmin } from "../config/socket.js";
 
 export const getBalance = async (userId) => {
     const user = await User.findById(userId).select("credits").lean();
@@ -39,6 +40,26 @@ export const deductCredits = async ({ userId, amount, type = "ai_usage", action,
         referenceId,
     });
 
+    emitToUser(userId, "credits:updated", {
+        credits: user.credits,
+        change: -amount,
+        reason: ledgerEntry.reason,
+        remainingBalance: user.credits,
+    });
+
+    emitToUser(userId, "user:updated", {
+        id: user._id,
+        credits: user.credits,
+        plan: user.plan,
+    });
+
+    emitToAdmin("admin:telemetry", {
+        type: "credits_used",
+        userId,
+        amount: -amount,
+        action,
+    });
+
     return { user, ledgerEntry };
 };
 
@@ -65,6 +86,26 @@ export const addCredits = async ({ userId, amount, type = "bonus", action, reaso
         action,
         reason: reason || `Added ${amount} credits for ${action}`,
         referenceId,
+    });
+
+    emitToUser(userId, "credits:updated", {
+        credits: user.credits,
+        change: Math.abs(amount),
+        reason: ledgerEntry.reason,
+        remainingBalance: user.credits,
+    });
+
+    emitToUser(userId, "user:updated", {
+        id: user._id,
+        credits: user.credits,
+        plan: user.plan,
+    });
+
+    emitToAdmin("admin:telemetry", {
+        type: "credits_added",
+        userId,
+        amount: Math.abs(amount),
+        action,
     });
 
     return { user, ledgerEntry };

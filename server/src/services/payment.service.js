@@ -5,6 +5,7 @@ import AppError from "../utils/AppError.js";
 import { stripeProvider } from "../providers/stripe.provider.js";
 import { env } from "../config/env.js";
 import logger from "../config/logger.js";
+import { emitToUser, emitToAdmin } from "../config/socket.js";
 
 export const PLANS = {
     FREE: {
@@ -113,7 +114,7 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         await transaction.save();
     }
 
-    await CreditLedger.create({
+    const ledgerEntry = await CreditLedger.create({
         userId: user._id,
         amount: plan.credits,
         type: "subscription",
@@ -122,8 +123,44 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         reason: `${plan.name} Plan Purchased (Stripe Session ${sessionId.slice(0, 12)}...)`,
         referenceId: transaction._id.toString(),
     });
+    
+    emitToUser(userId, "subscription:updated", {
+        plan: plan.id,
+        credits: user.credits,
+        subscriptionStatus: "active",
+        subscriptionEnd: user.subscriptionEnd,
+    });
 
-    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "Subscription payment fulfilled successfully");
+    emitToUser(userId, "credits:updated", {
+        credits: user.credits,
+        change: plan.credits,
+        reason: ledgerEntry.reason,
+        remainingBalance: user.credits,
+    });
+
+    emitToUser(userId, "user:updated", {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        plan: user.plan,
+        credits: user.credits,
+        subscriptionStatus: "active",
+    });
+
+    emitToUser(userId, "notification:created", {
+        title: "Subscription Upgraded",
+        message: `Successfully subscribed to ${plan.name} plan! ${plan.credits} credits added.`,
+        type: "success",
+    });
+
+    emitToAdmin("admin:telemetry", {
+        type: "new_subscription",
+        userId,
+        amount: transaction.amount,
+        plan: plan.id,
+    });
+
+    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "Subscription payment fulfilled successfully with real-time socket events");
 
     return { user, transaction };
 };

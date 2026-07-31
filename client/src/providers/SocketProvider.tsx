@@ -1,70 +1,128 @@
-import React, { useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { socket } from "@/lib/socket";
 import { useCurrentUser } from "@/features/auth/hooks/useAuth";
-import { RESUME_QUERY_KEYS } from "@/features/resumes/hooks/useResumes";
 
-interface SocketProviderProps {
-  children: React.ReactNode;
+interface SocketContextType {
+  socket: Socket | null;
+  isConnected: boolean;
 }
 
-export const SocketProvider: React.FC<SocketProviderProps> = ({ children }) => {
+const SocketContext = createContext<SocketContextType>({
+  socket: null,
+  isConnected: false,
+});
+
+export const useSocketContext = () => useContext(SocketContext);
+
+export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const queryClient = useQueryClient();
   const { data: userResponse } = useCurrentUser();
   const user = userResponse?.user;
 
   useEffect(() => {
-    if (!user?.id && !user?._id) return;
-    const userId = user.id || user._id;
+    const socketUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const socketInstance = io(socketUrl, {
+      withCredentials: true,
+      transports: ["websocket", "polling"],
+      autoConnect: true,
+    });
 
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    socket.emit("join", userId);
-
-    const handleAnalysisStarted = (data: { resumeId: string }) => {
-      toast.info("Resume analysis started...");
-      if (data.resumeId) {
-        queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.detail(data.resumeId) });
-      }
-    };
-
-    const handleAnalysisCompleted = (data: { resumeId: string; analysis?: any }) => {
-      toast.success("Resume analysis completed!");
-      if (data.resumeId) {
-        if (data.analysis) {
-          queryClient.setQueryData(RESUME_QUERY_KEYS.analysis(data.resumeId), {
-            success: true,
-            analysis: data.analysis,
-          });
-        } else {
-          queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.analysis(data.resumeId) });
+    socketInstance.on("connect", () => {
+      setIsConnected(true);
+      if (user?.id) {
+        socketInstance.emit("join", user.id);
+        if (user.role === "admin") {
+          socketInstance.emit("joinAdmin");
         }
-        queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.detail(data.resumeId) });
-        queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.lists() });
       }
-    };
+    });
 
-    const handleAnalysisFailed = (data: { resumeId: string; errorMessage?: string }) => {
-      toast.error(data.errorMessage || "Resume analysis failed");
-      if (data.resumeId) {
-        queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.detail(data.resumeId) });
-        queryClient.invalidateQueries({ queryKey: RESUME_QUERY_KEYS.analysis(data.resumeId) });
+    socketInstance.on("disconnect", () => {
+      setIsConnected(false);
+    });
+
+    socketInstance.on("credits:updated", (data) => {
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
+
+      if (data.change && data.change > 0) {
+        toast.success(`+${data.change} Credits Added!`, {
+          description: data.reason || `New balance: ${data.credits} credits`,
+        });
       }
-    };
+    });
 
-    socket.on("analysis:started", handleAnalysisStarted);
-    socket.on("analysis:completed", handleAnalysisCompleted);
-    socket.on("analysis:failed", handleAnalysisFailed);
+    socketInstance.on("subscription:updated", (data) => {
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
+      queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
+
+      toast.success("Subscription Updated!", {
+        description: `Your active plan is now ${data.plan}.`,
+      });
+    });
+
+    socketInstance.on("user:updated", () => {
+      queryClient.invalidateQueries({ queryKey: ["auth"] });
+      queryClient.invalidateQueries({ queryKey: ["user", "profile"] });
+    });
+
+    socketInstance.on("notification:created", (data) => {
+      if (data.type === "success") {
+        toast.success(data.title, { description: data.message });
+      } else if (data.type === "error") {
+        toast.error(data.title, { description: data.message });
+      } else {
+        toast.info(data.title, { description: data.message });
+      }
+    });
+
+    socketInstance.on("analysis:started", () => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      toast.info("AI Analysis Started", { description: "Processing resume metrics..." });
+    });
+
+    socketInstance.on("analysis:completed", () => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      toast.success("AI Analysis Completed!", { description: "Detailed diagnostics ready." });
+    });
+
+    socketInstance.on("analysis:failed", (data) => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+      toast.error("AI Analysis Failed", { description: data.errorMessage || "Credits refunded." });
+    });
+
+    socketInstance.on("admin:telemetry", () => {
+      if (user?.role === "admin") {
+        queryClient.invalidateQueries({ queryKey: ["admin"] });
+      }
+    });
+
+    setSocket(socketInstance);
 
     return () => {
-      socket.off("analysis:started", handleAnalysisStarted);
-      socket.off("analysis:completed", handleAnalysisCompleted);
-      socket.off("analysis:failed", handleAnalysisFailed);
+      socketInstance.off("connect");
+      socketInstance.off("disconnect");
+      socketInstance.off("credits:updated");
+      socketInstance.off("subscription:updated");
+      socketInstance.off("user:updated");
+      socketInstance.off("notification:created");
+      socketInstance.off("analysis:started");
+      socketInstance.off("analysis:completed");
+      socketInstance.off("analysis:failed");
+      socketInstance.off("admin:telemetry");
+      socketInstance.disconnect();
     };
-  }, [user, queryClient]);
+  }, [user?.id, user?.role, queryClient]);
 
-  return <>{children}</>;
+  return (
+    <SocketContext.Provider value={{ socket, isConnected }}>
+      {children}
+    </SocketContext.Provider>
+  );
 };
