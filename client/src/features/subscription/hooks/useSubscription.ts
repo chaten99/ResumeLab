@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getSubscriptionStatus, startCheckout, getBillingHistory } from "../api/subscription.api";
+import { getSubscriptionStatus, startCheckout, verifySession, getBillingHistory } from "../api/subscription.api";
 
 export const SUBSCRIPTION_QUERY_KEYS = {
     status: ["subscription", "status"] as const,
@@ -16,6 +16,12 @@ export const useCurrentSubscription = () => {
 export const useStartCheckout = () => {
     return useMutation({
         mutationFn: (planId: "PRO" | "PREMIUM") => startCheckout(planId),
+    });
+};
+
+export const useVerifySession = () => {
+    return useMutation({
+        mutationFn: (sessionId: string) => verifySession(sessionId),
     });
 };
 

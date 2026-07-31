@@ -1,5 +1,5 @@
 import User from "../models/user.model.js";
-import { createCheckoutSession, getUserBillingHistory, fulfillSubscriptionPayment, PLANS } from "../services/payment.service.js";
+import { createCheckoutSession, getUserBillingHistory, fulfillSubscriptionPayment, verifyAndFulfillSession, PLANS } from "../services/payment.service.js";
 import { stripeProvider } from "../providers/stripe.provider.js";
 import logger from "../config/logger.js";
 
@@ -30,6 +30,22 @@ export const startCheckoutSession = async (req, res) => {
         success: true,
         checkoutUrl,
         sessionId,
+    });
+};
+
+export const verifySessionHandler = async (req, res) => {
+    const { sessionId } = req.body;
+    logger.info({ userId: req.user._id, sessionId }, "[VERIFY SESSION] Verifying checkout session completion");
+
+    const { user, transaction } = await verifyAndFulfillSession(sessionId, req.user._id);
+
+    return res.status(200).json({
+        success: true,
+        message: "Subscription verified and active.",
+        plan: user.plan,
+        credits: user.credits,
+        subscriptionStatus: user.subscriptionStatus,
+        transaction,
     });
 };
 
@@ -73,12 +89,13 @@ export const handleStripeWebhook = async (req, res) => {
             metadataUserId,
         }, "[WEBHOOK STEP 4] Extracted Checkout Session Data");
 
+        // 3-Tier User Identification Pipeline
         let targetUser = null;
 
         if (metadataUserId) {
             targetUser = await User.findById(metadataUserId);
             if (targetUser) {
-                logger.info({ userId: targetUser._id }, "[WEBHOOK STEP 5] User identified via Tier 1 (metadata.userId / client_reference_id)");
+                logger.info({ userId: targetUser._id }, "[WEBHOOK STEP 5] User identified via Tier 1 (metadata.userId)");
             }
         }
 
