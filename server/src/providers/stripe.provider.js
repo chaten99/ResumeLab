@@ -28,17 +28,53 @@ class StripeProvider {
                 name,
                 metadata: { userId: userId.toString() },
             });
+            logger.info({ customerId: customer.id, userId }, "Created new real Stripe customer");
             return customer.id;
         } catch (err) {
-            logger.error({ err }, "Stripe createCustomer error");
+            logger.error({ err: err.message }, "Stripe createCustomer error");
             throw new AppError(`Failed to create Stripe customer: ${err.message}`, 500);
         }
+    }
+
+    async retrieveCustomer(customerId) {
+        const stripe = this.getStripeInstance();
+        try {
+            const customer = await stripe.customers.retrieve(customerId);
+            if (customer.deleted) {
+                return null;
+            }
+            return customer;
+        } catch (err) {
+            logger.warn({ customerId, error: err.message }, "Stripe retrieveCustomer error (Customer may not exist on Stripe)");
+            return null;
+        }
+    }
+
+    async getOrCreateCustomer(user) {
+        if (user.stripeCustomerId && !user.stripeCustomerId.startsWith("cus_mock_")) {
+            const existingCustomer = await this.retrieveCustomer(user.stripeCustomerId);
+            if (existingCustomer) {
+                return existingCustomer.id;
+            }
+            logger.info({ userId: user._id, invalidId: user.stripeCustomerId }, "Existing customer ID invalid or deleted on Stripe. Re-creating.");
+        }
+
+        const newCustomerId = await this.createCustomer({
+            email: user.email,
+            name: user.name,
+            userId: user._id,
+        });
+
+        user.stripeCustomerId = newCustomerId;
+        await user.save();
+
+        return newCustomerId;
     }
 
     async createCheckoutSession({ customerId, plan, amount, priceId, userId, successUrl, cancelUrl }) {
         const stripe = this.getStripeInstance();
 
-        logger.info({ userId, plan, amount, priceId }, "Creating Stripe Checkout Session");
+        logger.info({ userId, customerId, plan, amount, priceId }, "Creating Stripe Checkout Session");
 
         const lineItem = priceId
             ? { price: priceId, quantity: 1 }
