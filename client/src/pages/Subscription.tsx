@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Check, Sparkles, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -7,28 +7,48 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageTransition } from "@/components/layout/PageTransition";
-import { useCurrentSubscription, useStartCheckout } from "@/features/subscription/hooks/useSubscription";
+import {
+  useCurrentSubscription,
+  useStartCheckout,
+  useVerifySession,
+} from "@/features/subscription/hooks/useSubscription";
 
 export const Subscription: React.FC = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: subData, isLoading } = useCurrentSubscription();
   const checkoutMutation = useStartCheckout();
+  const verifySessionMutation = useVerifySession();
 
   useEffect(() => {
-    if (searchParams.get("success") === "true") {
-      queryClient.invalidateQueries({ queryKey: ["auth"] });
-      queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
-      queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
-      queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
-      toast.success("Payment Successful!", {
-        description: "Your subscription and AI credits have been updated automatically.",
-      });
-      setSearchParams({}, { replace: true });
+    const isSuccess = searchParams.get("success") === "true";
+    const sessionId = searchParams.get("session_id");
+
+    if (isSuccess && sessionId) {
+      toast.loading("Verifying subscription status...");
+      verifySessionMutation
+        .mutateAsync(sessionId)
+        .then((res) => {
+          toast.dismiss();
+          queryClient.invalidateQueries({ queryKey: ["auth"] });
+          queryClient.invalidateQueries({ queryKey: ["subscription", "status"] });
+          queryClient.invalidateQueries({ queryKey: ["billing", "history"] });
+          queryClient.invalidateQueries({ queryKey: ["user", "credits"] });
+          toast.success("Subscription Activated!", {
+            description: `Successfully upgraded to ${res.plan} plan with ${res.credits} credits.`,
+          });
+          setSearchParams({}, { replace: true });
+        })
+        .catch((err: any) => {
+          toast.dismiss();
+          toast.error("Session verification failed", {
+            description: err?.response?.data?.message || "Please contact support.",
+          });
+          setSearchParams({}, { replace: true });
+        });
     } else if (searchParams.get("canceled") === "true") {
       toast.info("Checkout Canceled", {
-        description: "Your plan remains unchanged.",
+        description: "Your active plan remains unchanged.",
       });
       setSearchParams({}, { replace: true });
     }
@@ -64,12 +84,14 @@ export const Subscription: React.FC = () => {
       toast.loading("Initiating Stripe Checkout...");
       const res = await checkoutMutation.mutateAsync(planId);
       toast.dismiss();
-      if (res.checkoutUrl) {
+      if (res?.checkoutUrl) {
         window.location.href = res.checkoutUrl;
+      } else {
+        toast.error("Stripe checkout URL not received.");
       }
-    } catch {
+    } catch (err: any) {
       toast.dismiss();
-      toast.error("Failed to start checkout session");
+      toast.error(err?.response?.data?.message || "Failed to start checkout session");
     }
   };
 
@@ -105,11 +127,39 @@ export const Subscription: React.FC = () => {
           const isCurrent = currentPlan === p.id;
           const isPopular = p.id === "PRO";
 
+          // UI BUY RULES (FREE / PRO / PREMIUM)
+          const isProPlan = p.id === "PRO";
+          const isPremiumPlan = p.id === "PREMIUM";
+
+          let isButtonDisabled = false;
+          let buttonLabel = `Upgrade to ${p.name}`;
+
+          if (currentPlan === "FREE") {
+            if (p.id === "FREE") {
+              isButtonDisabled = true;
+              buttonLabel = "Active Plan";
+            }
+          } else if (currentPlan === "PRO") {
+            if (isProPlan || p.id === "FREE") {
+              isButtonDisabled = true;
+              buttonLabel = isProPlan ? "Current Plan" : "Included";
+            } else if (isPremiumPlan) {
+              buttonLabel = "Upgrade to PREMIUM";
+            }
+          } else if (currentPlan === "PREMIUM") {
+            isButtonDisabled = true;
+            if (isPremiumPlan) {
+              buttonLabel = "Current Active Plan";
+            } else {
+              buttonLabel = "Downgrade Unavailable";
+            }
+          }
+
           return (
             <div
               key={p.id}
               className={`rounded-2xl border bg-card p-6 shadow-2xs flex flex-col justify-between relative transition-all ${
-                isPopular ? "border-primary shadow-md ring-1 ring-primary/20 scale-102" : "border-border"
+                isPopular && currentPlan !== "PREMIUM" ? "border-primary shadow-md ring-1 ring-primary/20 scale-102" : "border-border"
               }`}
             >
               {isPopular && (
@@ -149,13 +199,9 @@ export const Subscription: React.FC = () => {
               </div>
 
               <div className="pt-6 mt-6 border-t border-border">
-                {isCurrent ? (
+                {isButtonDisabled ? (
                   <Button variant="outline" disabled className="w-full text-xs font-bold h-10">
-                    Active Plan
-                  </Button>
-                ) : p.id === "FREE" ? (
-                  <Button variant="outline" onClick={() => navigate("/dashboard")} className="w-full text-xs font-bold h-10">
-                    Use Free Tier
+                    {buttonLabel}
                   </Button>
                 ) : (
                   <Button
@@ -164,7 +210,7 @@ export const Subscription: React.FC = () => {
                     className="w-full text-xs font-bold h-10 gap-1.5 shadow-xs"
                   >
                     <Sparkles className="size-4" />
-                    <span>Upgrade to {p.name}</span>
+                    <span>{buttonLabel}</span>
                   </Button>
                 )}
               </div>

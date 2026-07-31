@@ -10,6 +10,11 @@ export const startCheckout = async (planId: "PRO" | "PREMIUM") => {
     return response.data;
 };
 
+export const verifySession = async (sessionId: string) => {
+    const response = await api.post("/subscription/verify-session", { sessionId });
+    return response.data;
+};
+
 export const getBillingHistory = async () => {
     const response = await api.get("/billing/history");
     return response.data;

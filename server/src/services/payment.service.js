@@ -42,7 +42,15 @@ export const createCheckoutSession = async (user, planId) => {
         throw new AppError("Invalid subscription plan selected.", 400);
     }
 
-    // Safely retrieve or create real Stripe Customer ID
+    if (user.subscriptionStatus === "active") {
+        if (user.plan === "PREMIUM") {
+            throw new AppError("You are already subscribed to the highest tier (PREMIUM).", 400);
+        }
+        if (user.plan === "PRO" && planId === "PRO") {
+            throw new AppError("You are already subscribed to the PRO plan.", 400);
+        }
+    }
+
     const customerId = await stripeProvider.getOrCreateCustomer(user);
 
     const clientUrl = env.CLIENT_URL || "http://localhost:5173";
@@ -78,14 +86,12 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         throw new AppError("User not found for payment fulfillment.", 404);
     }
 
-    // Webhook & Session Fulfillment Idempotency Check
     let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
     if (transaction && transaction.status === "completed") {
-        logger.info({ sessionId, userId }, "[FULFILLMENT] Webhook session already fulfilled previously (Idempotent execution)");
+        logger.info({ sessionId, userId }, "[FULFILLMENT] Payment already completed previously (Idempotent)");
         return { user, transaction };
     }
 
-    // 1. Update MongoDB User Subscription & Credits
     const oldPlan = user.plan;
     const oldCredits = user.credits;
 
@@ -103,9 +109,8 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         oldCredits,
         newCredits: user.credits,
         status: user.subscriptionStatus,
-    }, "[FULFILLMENT STEP 1] MongoDB User Document Updated & Saved");
+    }, "[FULFILLMENT SUCCESS] User plan and credits updated in MongoDB");
 
-    // 2. Record Transaction Document
     if (!transaction) {
         transaction = await Transaction.create({
             userId: user._id,
@@ -114,19 +119,17 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
             currency: "inr",
             paymentProvider: "stripe",
             checkoutSessionId: sessionId,
-            paymentIntentId,
+            paymentIntentId: paymentIntentId || null,
             status: "completed",
             creditsAdded: plan.credits,
         });
     } else {
         transaction.status = "completed";
         transaction.paymentIntentId = paymentIntentId || transaction.paymentIntentId;
+        transaction.amount = amount || transaction.amount;
         await transaction.save();
     }
 
-    logger.info({ transactionId: transaction._id }, "[FULFILLMENT STEP 2] Transaction Record Saved in MongoDB");
-
-    // 3. Record Credit Ledger Document
     const ledgerEntry = await CreditLedger.create({
         userId: user._id,
         amount: plan.credits,
@@ -137,9 +140,6 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         referenceId: transaction._id.toString(),
     });
 
-    logger.info({ ledgerId: ledgerEntry._id, balanceAfter: ledgerEntry.balanceAfter }, "[FULFILLMENT STEP 3] Credit Ledger Audit Entry Saved in MongoDB");
-
-    // 4. Emit Real-time Socket Events to Private User Room user:{userId}
     emitToUser(userId, "subscription:updated", {
         plan: plan.id,
         credits: user.credits,
@@ -176,9 +176,41 @@ export const fulfillSubscriptionPayment = async ({ userId, plan: planId, session
         plan: plan.id,
     });
 
-    logger.info({ userId: user._id, plan: plan.id, credits: user.credits }, "[FULFILLMENT STEP 4] Real-time Socket Events Emitted to user room");
-
     return { user, transaction };
+};
+
+export const verifyAndFulfillSession = async (sessionId, fallbackUserId = null) => {
+    if (!sessionId) {
+        throw new AppError("Session ID is required for verification", 400);
+    }
+
+    let transaction = await Transaction.findOne({ checkoutSessionId: sessionId });
+    if (transaction && transaction.status === "completed") {
+        const user = await User.findById(transaction.userId);
+        return { user, transaction };
+    }
+
+    const stripe = stripeProvider.getStripeInstance();
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (!session || (session.payment_status !== "paid" && session.status !== "complete")) {
+        throw new AppError("Payment session has not been completed on Stripe.", 400);
+    }
+
+    const userId = session.client_reference_id || session.metadata?.userId || fallbackUserId || transaction?.userId;
+    const plan = session.metadata?.plan || transaction?.plan || "PRO";
+
+    if (!userId) {
+        throw new AppError("Could not identify user for Stripe session verification", 404);
+    }
+
+    return await fulfillSubscriptionPayment({
+        userId,
+        plan,
+        sessionId: session.id,
+        paymentIntentId: session.payment_intent || null,
+        amount: (session.amount_total || 0) / 100,
+    });
 };
 
 export const getUserBillingHistory = async (userId) => {
