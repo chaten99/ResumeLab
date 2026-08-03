@@ -5,6 +5,9 @@ import { parseResumePdf } from "../services/resumeParser.service.js";
 import { recordActivity } from "../services/activity.service.js";
 import { createInAppNotification } from "../services/notification.service.js";
 import { emitToUser } from "../config/socket.js";
+import { addResumeUploadJob } from "../queues/resume.queue.js";
+import { deleteFileFromS3 } from "../services/s3.service.js";
+import path from "path";
 
 export const uploadResume = async (req, res) => {
     if (!req.file) {
@@ -54,6 +57,81 @@ export const uploadResume = async (req, res) => {
     });
 };
 
+export const uploadResumeIntro = async (req, res) => {
+    if (!req.file) {
+        throw new AppError("Please select or record a valid video or audio introduction file", 400);
+    }
+
+    const userId = req.user._id;
+    const { targetRole = "Full Stack Developer", originalName } = req.body;
+
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const isAudio = [".mp3", ".wav", ".m4a"].includes(ext) || req.file.mimetype.startsWith("audio/");
+    const resourceType = isAudio ? "audio" : "video";
+
+    const resume = await Resume.create({
+        userId,
+        originalName: originalName || req.file.originalname,
+        targetRole,
+        currentStep: 1,
+        uploadStatus: "QUEUED",
+        processingStatus: "QUEUED",
+        media: {
+            type: resourceType,
+            originalName: req.file.originalname,
+            mimeType: req.file.mimetype,
+            size: req.file.size,
+            status: "QUEUED",
+        },
+    });
+
+    emitToUser(userId, "resume:queued", {
+        resumeId: resume._id.toString(),
+        status: "QUEUED",
+        progress: 5,
+    });
+
+    const job = await addResumeUploadJob({
+        resumeId: resume._id.toString(),
+        userId: userId.toString(),
+        filePath: req.file.path,
+        originalFileName: req.file.originalname,
+        resourceType,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+    });
+
+    if (job) {
+        resume.jobId = job.id?.toString() || null;
+        await resume.save();
+    }
+
+    return res.status(202).json({
+        success: true,
+        message: "Resume introduction queued for processing",
+        resumeId: resume._id,
+        status: "queued",
+        resume,
+    });
+};
+
+export const getLatestResumeIntro = async (req, res) => {
+    const userId = req.user._id;
+    const resume = await Resume.findOne({
+        userId,
+        "media.url": { $ne: null },
+        uploadStatus: "COMPLETED",
+    })
+        .sort({ updatedAt: -1 })
+        .lean();
+
+    return res.status(200).json({
+        success: true,
+        resume: resume || null,
+        media: resume?.media || null,
+    });
+};
+
 export const getResumes = async (req, res) => {
     const resumes = await Resume.find({
         userId: req.user._id,
@@ -95,6 +173,10 @@ export const deleteResume = async (req, res) => {
         throw new AppError("Resume not found", 404);
     }
 
+    if (resume.media?.objectKey) {
+        await deleteFileFromS3(resume.media.objectKey);
+    }
+
     await Analysis.deleteMany({
         resumeId: req.params.id,
         userId: req.user._id,
@@ -104,17 +186,7 @@ export const deleteResume = async (req, res) => {
         userId: req.user._id,
         type: "resume_deleted",
         description: `Deleted resume "${resume.originalName}"`,
-        metadata: { resumeId: resume._id },
     });
-
-    await createInAppNotification({
-        userId: req.user._id,
-        title: "Resume Deleted",
-        message: `Deleted resume "${resume.originalName}".`,
-        type: "warning",
-    });
-
-    emitToUser(req.user._id, "resume:deleted", { resumeId: resume._id });
 
     return res.status(200).json({
         success: true,

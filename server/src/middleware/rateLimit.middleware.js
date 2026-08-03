@@ -29,19 +29,19 @@ const createRateLimiter = ({
 
 export const registerRateLimiter = createRateLimiter({
     points: 5,
-    duration: 15 * 60, // 15 minutes
+    duration: 15 * 60,
     keyPrefix: "register",
 });
 
 export const loginRateLimiter = createRateLimiter({
     points: 10,
-    duration: 15 * 60, // 15 minutes
+    duration: 15 * 60,
     keyPrefix: "login",
 });
 
 export const refreshTokenRateLimiter = createRateLimiter({
     points: 20,
-    duration: 15 * 60, // 15 minutes
+    duration: 15 * 60,
     keyPrefix: "refreshToken",
 });
 

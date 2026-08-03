@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { resumeApi } from "../api/resume.api";
 import type { UploadResumeInput } from "../types/resume.types";
 
+const isValidMongoId = (id: string) => Boolean(id && /^[0-9a-fA-F]{24}$/.test(id));
+
 export const RESUME_QUERY_KEYS = {
   all: ["resumes"] as const,
   lists: () => [...RESUME_QUERY_KEYS.all, "list"] as const,
@@ -21,7 +23,7 @@ export const useResume = (id: string) => {
   return useQuery({
     queryKey: RESUME_QUERY_KEYS.detail(id),
     queryFn: ({ signal }) => resumeApi.getResume(id, signal),
-    enabled: !!id,
+    enabled: isValidMongoId(id),
     staleTime: 1000 * 60 * 5,
   });
 };
@@ -30,7 +32,7 @@ export const useResumeAnalysis = (id: string) => {
   return useQuery({
     queryKey: RESUME_QUERY_KEYS.analysis(id),
     queryFn: ({ signal }) => resumeApi.getResumeAnalysis(id, signal),
-    enabled: !!id,
+    enabled: isValidMongoId(id),
     staleTime: 1000 * 60 * 15,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
@@ -41,7 +43,7 @@ export const useResumeAnalysis = (id: string) => {
     },
     retry: (failureCount, error: any) => {
       if (error?.name === "CanceledError" || error?.code === "ERR_CANCELED") return false;
-      if (error?.response?.status === 404) return false;
+      if (error?.response?.status === 404 || error?.response?.status === 400) return false;
       return failureCount < 2;
     },
   });

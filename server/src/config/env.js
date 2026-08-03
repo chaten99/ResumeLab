@@ -27,6 +27,12 @@ const envSchema = z.object({
     GEMINI_MODEL: z
         .string()
         .default("gemini-2.5-flash"),
+    AWS_REGION: z.string().optional().default("us-east-1"),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    AWS_S3_BUCKET_NAME: z.string().optional().default("resumelab-storage"),
+    AWS_PRESIGNED_URL_EXPIRES_IN: z.coerce.number().int().positive().default(3600),
+    UPLOAD_MAX_SIZE_MB: z.coerce.number().int().positive().default(200),
 });
 
 const result = envSchema.safeParse(process.env);

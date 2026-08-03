@@ -1,6 +1,6 @@
 import React from "react";
 import { Link, NavLink } from "react-router-dom";
-import { FileText, Zap, ShieldCheck } from "lucide-react";
+import { FileText, Zap, ShieldCheck, PlusCircle } from "lucide-react";
 import { UserMenu } from "./UserMenu";
 import { NotificationCenter } from "./NotificationCenter";
 import { useCurrentUser } from "@/features/auth/hooks/useAuth";
@@ -31,59 +31,56 @@ export const AppNavbar: React.FC = () => {
             )}
           </Link>
 
-          {isAdmin && (
-            <nav className="hidden md:flex items-center gap-1 text-xs font-medium">
-              <NavLink
-                to="/dashboard"
-                end
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Dashboard
-              </NavLink>
-              <NavLink
-                to="/dashboard/users"
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Users
-              </NavLink>
-              <NavLink
-                to="/dashboard/resumes-manage"
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Resumes
-              </NavLink>
-              <NavLink
-                to="/dashboard/credits-ledger"
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Ledger
-              </NavLink>
-              <NavLink
-                to="/dashboard/transactions"
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Transactions
-              </NavLink>
-              <NavLink
-                to="/dashboard/analytics"
-                className={({ isActive }) =>
-                  `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
-                }
-              >
-                Analytics
-              </NavLink>
-            </nav>
-          )}
+          <nav className="hidden md:flex items-center gap-1 text-xs font-medium">
+            <NavLink
+              to="/dashboard"
+              end
+              className={({ isActive }) =>
+                `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
+              }
+            >
+              Dashboard
+            </NavLink>
+
+            <NavLink
+              to="/resumes/builder"
+              className={({ isActive }) =>
+                `px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
+              }
+            >
+              <PlusCircle className="size-3.5 text-primary" />
+              <span>Create Resume</span>
+            </NavLink>
+
+            {isAdmin && (
+              <>
+                <NavLink
+                  to="/dashboard/users"
+                  className={({ isActive }) =>
+                    `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
+                  }
+                >
+                  Users
+                </NavLink>
+                <NavLink
+                  to="/dashboard/resumes-manage"
+                  className={({ isActive }) =>
+                    `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
+                  }
+                >
+                  Resumes
+                </NavLink>
+                <NavLink
+                  to="/dashboard/credits-ledger"
+                  className={({ isActive }) =>
+                    `px-2.5 py-1 rounded-md transition-colors ${isActive ? "bg-primary/10 text-primary font-bold" : "text-muted-foreground hover:text-foreground"}`
+                  }
+                >
+                  Ledger
+                </NavLink>
+              </>
+            )}
+          </nav>
         </div>
 
         <div className="flex items-center gap-3">
@@ -98,7 +95,7 @@ export const AppNavbar: React.FC = () => {
             </Link>
           )}
 
-          {user && <NotificationCenter />}
+          <NotificationCenter />
           <UserMenu />
         </div>
       </div>

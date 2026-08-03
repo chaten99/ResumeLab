@@ -15,6 +15,7 @@ import Profile from "@/pages/Profile";
 import Billing from "@/pages/Billing";
 import Subscription from "@/pages/Subscription";
 import Credits from "@/pages/Credits";
+import ResumeBuilder from "@/pages/ResumeBuilder";
 import NotFound from "@/pages/errors/NotFound";
 
 import {
@@ -78,9 +79,13 @@ function App() {
             <Route path="/billing" element={<Billing />} />
             <Route path="/subscription" element={<Subscription />} />
             <Route path="/credits" element={<Credits />} />
+
+            <Route path="/builder" element={<ResumeBuilder />} />
+            <Route path="/resumes/builder" element={<ResumeBuilder />} />
             <Route path="/resumes/new" element={<UploadResume />} />
             <Route path="/resumes/history" element={<ResumeHistory />} />
             <Route path="/analyze" element={<UploadResume />} />
+
             <Route path="/resumes/:id" element={<ResumeDetails />} />
 
             <Route element={<ProtectedAdminRoute />}>

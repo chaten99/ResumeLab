@@ -42,7 +42,6 @@ export const AdminDashboard: React.FC = () => {
     );
   }
 
-  // System Health Status (PART 21)
   const healthServices = [
     { name: "MongoDB Cluster", status: "Operational", icon: Database, color: "text-emerald-500" },
     { name: "Redis Cache", status: "Operational", icon: Server, color: "text-emerald-500" },

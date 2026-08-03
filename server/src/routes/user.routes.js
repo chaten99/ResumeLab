@@ -23,14 +23,12 @@ router.put("/profile", updateProfile);
 router.post("/change-password", changePassword);
 router.get("/credits", getUserCredits);
 
-// Activities & Notifications
 router.get("/activities", getActivitiesHandler);
 router.get("/notifications", getNotificationsHandler);
 router.patch("/notifications/read-all", markAllNotificationsReadHandler);
 router.patch("/notifications/:id/read", markNotificationReadHandler);
 router.delete("/notifications/:id", deleteNotificationHandler);
 
-// Account Settings Extras
 router.post("/export-data", exportUserData);
 router.delete("/account", deactivateAccount);
 

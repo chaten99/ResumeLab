@@ -18,7 +18,6 @@ export const deductCredits = async ({ userId, amount, type = "ai_usage", action,
         throw new AppError("Deduction amount must be greater than zero", 400);
     }
 
-    // Atomic update query enforcing balance >= amount to prevent race conditions & negative balances
     const user = await User.findOneAndUpdate(
         { _id: userId, credits: { $gte: amount } },
         { $inc: { credits: -amount } },

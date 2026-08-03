@@ -24,7 +24,6 @@ import {
 
 const router = express.Router();
 
-// Apply auth and admin check to all admin endpoints
 router.use(authenticate, requireAdmin);
 
 router.get("/overview", getOverviewStats);

@@ -124,7 +124,6 @@ export const Subscription: React.FC = () => {
           const isCurrent = currentPlan === p.id;
           const isPopular = p.id === "PRO";
 
-          // UI BUY RULES (FREE / PRO / PREMIUM)
           const isProPlan = p.id === "PRO";
           const isPremiumPlan = p.id === "PREMIUM";
 
