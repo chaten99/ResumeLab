@@ -26,6 +26,8 @@ export interface LoginInput {
 export interface AuthResponse {
     success: boolean;
     message: string;
+    accessToken?: string;
+    refreshToken?: string;
     user: User;
 }
 
@@ -37,6 +39,8 @@ export interface MeResponse {
 export interface MessageResponse {
     success: boolean;
     message: string;
+    accessToken?: string;
+    refreshToken?: string;
 }
 
 export interface VerifyEmailInput {
