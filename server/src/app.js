@@ -23,6 +23,8 @@ import "./workers/resume.worker.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(httpLogger);
 
 const s3UploadsDir = path.join(process.cwd(), "uploads", "s3");
@@ -49,8 +51,15 @@ app.use(helmet({
 
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin: (origin, callback) => {
+      if (!origin || origin === env.CLIENT_URL || env.CLIENT_URL === "*") {
+        return callback(null, true);
+      }
+      return callback(null, origin);
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
 

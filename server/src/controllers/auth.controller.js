@@ -94,7 +94,6 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     const user = await User.findOne({ email }).select("+password");
 
-
     if (!user) {
         throw new AppError("Invalid email or password", 401);
     }
@@ -132,6 +131,8 @@ export const login = async (req, res) => {
     res.status(200).json({
         success: true,
         message: "User logged in successfully",
+        accessToken,
+        refreshToken,
         user: formatUserResponse(user),
     });
 };
@@ -325,7 +326,12 @@ export const resetPassword = async (req, res) => {
 };
 
 export const refreshAccessToken = async (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+    let refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+
+    if (!refreshToken && req.headers.authorization?.startsWith("Bearer ")) {
+        refreshToken = req.headers.authorization.split(" ")[1];
+    }
+
     if (!refreshToken) {
         throw new AppError("Refresh token not found", 401);
     }
@@ -358,9 +364,12 @@ export const refreshAccessToken = async (req, res) => {
     );
 
     setAccessTokenCookie(res, accessToken);
+
     return res.status(200).json({
         success: true,
         message: "Access token refreshed successfully",
+        accessToken,
+        refreshToken,
         user: formatUserResponse(user),
     });
 };
@@ -456,12 +465,15 @@ export const verifyEmail = async (req, res) => {
     return res.status(200).json({
         success: true,
         message: "Email verified successfully",
+        accessToken,
+        refreshToken,
         user: formatUserResponse(user),
     });
 };
 
 export const logout = async (req, res) => {
-    const refreshToken = req.cookies.refreshToken;
+    let refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
+
     if (refreshToken) {
         try {
             const decoded = verifyRefreshToken(refreshToken);

@@ -3,6 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/features/auth/hooks/useAuth";
+import { getAccessToken } from "@/lib/tokenStorage";
 
 interface SocketContextType {
   socket: Socket | null;
@@ -72,10 +73,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const socketUrl = getSocketBaseUrl();
 
+    const token = getAccessToken();
     const socketInstance = io(socketUrl, {
       withCredentials: true,
       transports: ["websocket", "polling"],
       autoConnect: true,
+      auth: { token },
     });
 
     socketInstance.on("connect", () => {

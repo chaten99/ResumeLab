@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { setTokens, clearTokens } from "@/lib/tokenStorage";
 
 import {
   getMe,
@@ -37,6 +38,9 @@ export const useLogin = () => {
     mutationFn: loginUser,
 
     onSuccess: (data) => {
+      if (data.accessToken) {
+        setTokens(data.accessToken, data.refreshToken);
+      }
       queryClient.clear();
       queryClient.setQueryData(authKeys.me, {
         success: true,
@@ -53,6 +57,11 @@ export const useLogout = () => {
     mutationFn: logoutUser,
 
     onSuccess: () => {
+      clearTokens();
+      queryClient.clear();
+    },
+    onError: () => {
+      clearTokens();
       queryClient.clear();
     },
   });
@@ -65,6 +74,9 @@ export const useVerifyEmail = () => {
     mutationFn: verifyEmail,
 
     onSuccess: (data) => {
+      if (data.accessToken) {
+        setTokens(data.accessToken, data.refreshToken);
+      }
       queryClient.clear();
       queryClient.setQueryData(authKeys.me, {
         success: true,
@@ -93,6 +105,7 @@ export const useResetPassword = () => {
     mutationFn: resetPassword,
 
     onSuccess: () => {
+      clearTokens();
       queryClient.clear();
     },
   });
