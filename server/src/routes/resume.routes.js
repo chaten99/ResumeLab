@@ -2,10 +2,13 @@ import { Router } from "express";
 
 import authenticate from "../middleware/auth.middleware.js";
 import upload from "../middleware/upload.middleware.js";
+import { mediaUpload } from "../middleware/mediaUpload.middleware.js";
 import validate from "../middleware/validate.js";
 
 import {
     uploadResume,
+    uploadResumeIntro,
+    getLatestResumeIntro,
     getResumes,
     getResumeById,
     deleteResume,
@@ -31,6 +34,17 @@ resumeRouter.use(authenticate);
 resumeRouter.get(
     "/",
     getResumes
+);
+
+resumeRouter.get(
+    "/intro/latest",
+    getLatestResumeIntro
+);
+
+resumeRouter.post(
+    "/upload-intro",
+    mediaUpload.single("file"),
+    uploadResumeIntro
 );
 
 resumeRouter.get(

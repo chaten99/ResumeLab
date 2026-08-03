@@ -15,7 +15,7 @@ const resumeSchema = new mongoose.Schema(
     },
     targetRole: {
       type: String,
-      required: true,
+      default: "Full Stack Engineer",
       trim: true,
       maxlength: 100,
     },
@@ -42,6 +42,47 @@ const resumeSchema = new mongoose.Schema(
       type: Number,
       min: 1,
     },
+    currentStep: {
+      type: Number,
+      default: 1,
+    },
+    uploadStatus: {
+      type: String,
+      enum: ["QUEUED", "UPLOADING", "COMPLETED", "FAILED"],
+      default: "QUEUED",
+    },
+    processingStatus: {
+      type: String,
+      enum: ["QUEUED", "UPLOADING", "COMPLETED", "FAILED"],
+      default: "QUEUED",
+    },
+    jobId: {
+      type: String,
+      default: null,
+    },
+    failureReason: {
+      type: String,
+      default: null,
+    },
+    media: {
+      type: { type: String, enum: ["video", "audio"], default: "video" },
+      originalName: { type: String, default: "" },
+      mimeType: { type: String, default: "" },
+      size: { type: Number, default: 0 },
+      duration: { type: Number, default: 0 },
+      bucket: { type: String, default: "" },
+      objectKey: { type: String, default: "" },
+      url: { type: String, default: "" },
+      etag: { type: String, default: "" },
+      status: { type: String, default: "QUEUED" },
+      uploadedAt: { type: Date, default: null },
+    },
+    transcript: { type: String, default: "" },
+    summary: { type: String, default: "" },
+    projects: { type: Array, default: [] },
+    skills: { type: Array, default: [] },
+    education: { type: Array, default: [] },
+    experience: { type: Array, default: [] },
   },
   { timestamps: true }
 );

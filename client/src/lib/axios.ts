@@ -46,7 +46,6 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // Catch 402 Payment / Credits Required & Dispatch Modal Event
         if (error.response?.status === 402) {
             const data = error.response?.data as any;
             window.dispatchEvent(

@@ -51,15 +51,16 @@ export const NotificationCenter: React.FC = () => {
 
   return (
     <Popover>
-      <PopoverTrigger>
-        <Button variant="ghost" size="icon" className="relative size-8 rounded-full" aria-label="Notifications">
-          <Bell className="size-4 text-muted-foreground" />
-          {unreadCount > 0 && (
-            <Badge className="absolute -top-1 -right-1 size-4 p-0 flex items-center justify-center text-[9px] bg-primary text-primary-foreground font-bold rounded-full">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          )}
-        </Button>
+      <PopoverTrigger
+        className="relative size-8 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors outline-none cursor-pointer"
+        aria-label="Notifications"
+      >
+        <Bell className="size-4" />
+        {unreadCount > 0 && (
+          <Badge className="absolute -top-1 -right-1 size-4 p-0 flex items-center justify-center text-[9px] bg-primary text-primary-foreground font-bold rounded-full">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </Badge>
+        )}
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-80 sm:w-96 p-0 font-sans shadow-lg border-border">

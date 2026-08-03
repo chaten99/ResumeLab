@@ -1,15 +1,15 @@
 import multer from "multer";
 import AppError from "../utils/AppError.js";
 
-const MAX_FILE_SIZE = 5*1024*1024; // 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-const storage  = multer.memoryStorage();
+const storage = multer.memoryStorage();
 const fileFilter = (req, file, cb) => {
-    if(file.mimetype !== "application/pdf") {
+    if (file.mimetype !== "application/pdf") {
         return cb(new AppError("Only PDF files are allowed", 400), false);
     }
     cb(null, true);
-}
+};
 
 const upload = multer({
     storage,
