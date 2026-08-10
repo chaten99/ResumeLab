@@ -60,6 +60,7 @@ export const achievementItemSchema = z.object({
 
 export const structuredResumeSchema = z.object({
   contact: contactSchema,
+  summary: z.string().default(""),
   skills: skillsSchema,
   experience: z.array(experienceItemSchema).default([]),
   projects: z.array(projectItemSchema).default([]),

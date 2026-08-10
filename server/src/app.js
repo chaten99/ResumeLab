@@ -20,6 +20,7 @@ import { handleStripeWebhook } from "./controllers/subscription.controller.js";
 
 import "./workers/media.worker.js";
 import "./workers/resume.worker.js";
+import "./workers/transcription.worker.js";
 
 const app = express();
 

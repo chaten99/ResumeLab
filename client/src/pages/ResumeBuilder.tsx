@@ -21,6 +21,12 @@ import {
   RefreshCw,
   Film,
   Music,
+  Printer,
+  Wand2,
+  Palette,
+  Download,
+  FileText,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,16 +39,28 @@ import {
   useUploadResumeIntro,
   useLatestResumeIntro,
   useDeleteResumeIntro,
+  useUpdateStructuredResume,
+  useRetriggerExtraction,
+  useConfirmStep1,
+  useUpdateBuilderState,
+  useExportPdf,
+  useExportDocx,
 } from "@/features/resumes/hooks/useResumeIntro";
 import { useSocketContext } from "@/providers/SocketProvider";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomMediaPlayer } from "@/components/media/CustomMediaPlayer";
+import { CustomAudioPlayer } from "@/components/media/CustomAudioPlayer";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { StructuredResumeEditor } from "@/components/resumes/StructuredResumeEditor";
+import { TemplateRenderer } from "@/components/templates/TemplateRenderer";
+import type { TemplateId, ColorTheme, StructuredResumeData } from "@/components/templates/types";
+import { PreUploadGuidanceDialog } from "@/components/resumes/PreUploadGuidanceDialog";
+import { Step1ConfirmDialog } from "@/components/resumes/Step1ConfirmDialog";
 
 type InputTab = "record_video" | "upload_video" | "record_audio" | "upload_audio";
 
@@ -50,6 +68,8 @@ export const ResumeBuilder: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [activeTab, setActiveTab] = useState<InputTab>("upload_video");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [guidanceOpen, setGuidanceOpen] = useState(false);
+  const [step1ConfirmOpen, setStep1ConfirmOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const [file, setFile] = useState<File | null>(null);
@@ -59,6 +79,9 @@ export const ResumeBuilder: React.FC = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [recordTimer, setRecordTimer] = useState(0);
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateId>("modern");
+  const [selectedColor, setSelectedColor] = useState<ColorTheme>("indigo");
 
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -74,14 +97,46 @@ export const ResumeBuilder: React.FC = () => {
     media?: any;
   } | null>(null);
 
+  const [transcriptionJob, setTranscriptionJob] = useState<{
+    status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
+    progress: number;
+    step: string;
+    failureReason?: string;
+  } | null>(null);
+
   const queryClient = useQueryClient();
   const { socket } = useSocketContext();
   const uploadIntroMutation = useUploadResumeIntro();
   const deleteIntroMutation = useDeleteResumeIntro();
+  const updateStructuredMutation = useUpdateStructuredResume();
+  const retriggerExtractionMutation = useRetriggerExtraction();
+  const confirmStep1Mutation = useConfirmStep1();
+  const updateBuilderStateMutation = useUpdateBuilderState();
+  const exportPdfMutation = useExportPdf();
+  const exportDocxMutation = useExportDocx();
   const { data: latestIntroData, isLoading: isLatestLoading } = useLatestResumeIntro();
 
   const attachedResume = latestIntroData?.resume;
   const attachedMedia = activeSocketJob?.media || latestIntroData?.media || attachedResume?.media;
+  const attachedTranscript = attachedResume?.transcript || latestIntroData?.transcript;
+  const structuredData: StructuredResumeData = attachedResume?.structuredResume || latestIntroData?.structuredResume || {};
+  const isStep1Locked = attachedResume?.step1Status === "CONFIRMED";
+  const generatedFiles = attachedResume?.generatedFiles || { pdf: { status: "PENDING" }, docx: { status: "PENDING" } };
+
+  // Sync state from Database source of truth on initial fetch
+  useEffect(() => {
+    if (attachedResume) {
+      if (attachedResume.currentStep && attachedResume.currentStep >= 1 && attachedResume.currentStep <= 4) {
+        setCurrentStep(attachedResume.currentStep as 1 | 2 | 3 | 4);
+      }
+      if (attachedResume.selectedTemplate) {
+        setSelectedTemplate(attachedResume.selectedTemplate as TemplateId);
+      }
+      if (attachedResume.selectedColor) {
+        setSelectedColor(attachedResume.selectedColor as ColorTheme);
+      }
+    }
+  }, [attachedResume]);
 
   useEffect(() => {
     return () => {
@@ -123,7 +178,7 @@ export const ResumeBuilder: React.FC = () => {
         progress: 100,
         media: data.media,
       });
-      toast.success("Self-introduction uploaded successfully!");
+      toast.success("Self-introduction stored! Extracting resume details...");
       queryClient.invalidateQueries({ queryKey: ["resumes"] });
     };
 
@@ -137,11 +192,73 @@ export const ResumeBuilder: React.FC = () => {
       toast.error(data.failureReason || "Upload failed. Please try again.");
     };
 
+    const handleTransStarted = (data: any) => {
+      setTranscriptionJob({
+        status: "PROCESSING",
+        progress: data.progress || 25,
+        step: data.step || "Extracting Speech",
+      });
+    };
+
+    const handleTransProgress = (data: any) => {
+      setTranscriptionJob({
+        status: "PROCESSING",
+        progress: data.progress || 60,
+        step: data.step || "Generating Resume Information",
+      });
+    };
+
+    const handleTransCompleted = () => {
+      setTranscriptionJob({
+        status: "COMPLETED",
+        progress: 100,
+        step: "Completed",
+      });
+      toast.success("AI Resume details extracted! Review in Step 2.");
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+    };
+
+    const handleTransFailed = (data: any) => {
+      setTranscriptionJob({
+        status: "FAILED",
+        progress: 0,
+        step: "Failed",
+        failureReason: data.failureReason,
+      });
+      toast.error(data.failureReason || "Speech transcription failed.");
+    };
+
+    const handleExtractionCompleted = () => {
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+    };
+
+    const handleExportStarted = (data: any) => {
+      toast.info(`Server-side ${data.type.toUpperCase()} export started...`);
+    };
+
+    const handleExportCompleted = () => {
+      toast.success(`Server-side export completed successfully!`);
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+    };
+
+    const handleExportFailed = (data: any) => {
+      toast.error(data.failureReason || `Export generation failed.`);
+      queryClient.invalidateQueries({ queryKey: ["resumes"] });
+    };
+
     socket.on("resume:queued", handleQueued);
     socket.on("resume:uploading", handleUploading);
     socket.on("resume:progress", handleProgress);
     socket.on("resume:completed", handleCompleted);
     socket.on("resume:failed", handleFailed);
+    socket.on("resume:transcription-started", handleTransStarted);
+    socket.on("resume:transcription-progress", handleTransProgress);
+    socket.on("resume:transcription-completed", handleTransCompleted);
+    socket.on("resume:transcription-failed", handleTransFailed);
+    socket.on("resume:extraction-completed", handleExtractionCompleted);
+    socket.on("resume:export-started", handleExportStarted);
+    socket.on("resume:export-completed", handleExportCompleted);
+    socket.on("resume:export-failed", handleExportFailed);
 
     return () => {
       socket.off("resume:queued", handleQueued);
@@ -149,6 +266,14 @@ export const ResumeBuilder: React.FC = () => {
       socket.off("resume:progress", handleProgress);
       socket.off("resume:completed", handleCompleted);
       socket.off("resume:failed", handleFailed);
+      socket.off("resume:transcription-started", handleTransStarted);
+      socket.off("resume:transcription-progress", handleTransProgress);
+      socket.off("resume:transcription-completed", handleTransCompleted);
+      socket.off("resume:transcription-failed", handleTransFailed);
+      socket.off("resume:extraction-completed", handleExtractionCompleted);
+      socket.off("resume:export-started", handleExportStarted);
+      socket.off("resume:export-completed", handleExportCompleted);
+      socket.off("resume:export-failed", handleExportFailed);
     };
   }, [socket, queryClient]);
 
@@ -279,11 +404,70 @@ export const ResumeBuilder: React.FC = () => {
     }
   };
 
+  const navigateToStep = async (step: 1 | 2 | 3 | 4) => {
+    setCurrentStep(step);
+    if (attachedResume?._id) {
+      try {
+        await updateBuilderStateMutation.mutateAsync({
+          id: attachedResume._id,
+          currentStep: step,
+          selectedTemplate,
+          selectedColor,
+        });
+      } catch (_) {}
+    }
+  };
+
+  const handleSaveStructured = async (updatedData: StructuredResumeData) => {
+    if (!attachedResume?._id) return;
+    try {
+      await updateStructuredMutation.mutateAsync({
+        id: attachedResume._id,
+        structuredResume: updatedData,
+      });
+      toast.success("Resume details saved successfully!");
+    } catch {
+      toast.error("Failed to save resume details");
+    }
+  };
+
+  const handleRetriggerExtraction = async () => {
+    if (!attachedResume?._id) return;
+    if (isStep1Locked) {
+      toast.error("Step 1 is locked. Modifications are not allowed.");
+      return;
+    }
+    try {
+      await retriggerExtractionMutation.mutateAsync(attachedResume._id);
+      toast.success("AI resume re-extraction completed!");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to re-extract details");
+    }
+  };
+
+  const handleConfirmStep1Action = async () => {
+    if (!attachedResume?._id) return;
+    try {
+      await confirmStep1Mutation.mutateAsync(attachedResume._id);
+      toast.success("Step 1 confirmed and locked!");
+      setStep1ConfirmOpen(false);
+      await navigateToStep(2);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to confirm Step 1");
+    }
+  };
+
   const handleConfirmDelete = async () => {
+    if (isStep1Locked) {
+      toast.error("Step 1 is locked. Confirmed media cannot be deleted.");
+      setConfirmDeleteOpen(false);
+      return;
+    }
     if (attachedResume?._id) {
       try {
         await deleteIntroMutation.mutateAsync(attachedResume._id);
         setActiveSocketJob(null);
+        setTranscriptionJob(null);
         toast.success("Introduction removed successfully");
       } catch {
         toast.error("Failed to remove introduction");
@@ -292,41 +476,93 @@ export const ResumeBuilder: React.FC = () => {
     setConfirmDeleteOpen(false);
   };
 
+  const handleDownloadPdf = async () => {
+    if (!attachedResume?._id) return;
+
+    if (generatedFiles?.pdf?.status === "COMPLETED" && generatedFiles.pdf.url) {
+      window.open(generatedFiles.pdf.url, "_blank");
+      toast.success("Downloading PDF file!");
+      return;
+    }
+
+    try {
+      toast.info("Generating server-side vector PDF...");
+      const res = await exportPdfMutation.mutateAsync(attachedResume._id);
+      if (res.export?.url) {
+        window.open(res.export.url, "_blank");
+        toast.success("PDF file generated and downloaded!");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "PDF generation failed. Your resume data is safe. Please retry.");
+    }
+  };
+
+  const handleDownloadDocx = async () => {
+    if (!attachedResume?._id) return;
+
+    if (generatedFiles?.docx?.status === "COMPLETED" && generatedFiles.docx.url) {
+      window.open(generatedFiles.docx.url, "_blank");
+      toast.success("Downloading DOCX file!");
+      return;
+    }
+
+    try {
+      toast.info("Generating server-side Word (.docx) document...");
+      const res = await exportDocxMutation.mutateAsync(attachedResume._id);
+      if (res.export?.url) {
+        window.open(res.export.url, "_blank");
+        toast.success("DOCX file generated and downloaded!");
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "DOCX generation failed. Your resume data is safe. Please retry.");
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
+  const isTranscribing =
+    transcriptionJob?.status === "PROCESSING" ||
+    attachedTranscript?.status === "PROCESSING" ||
+    attachedTranscript?.status === "PENDING";
+
   return (
     <PageTransition>
-      <div className="container mx-auto px-4 py-8 max-w-6xl space-y-8 font-sans">
-        <div className="space-y-6">
+      <div className="container mx-auto px-4 py-8 max-w-6xl space-y-8 font-sans print:p-0 print:m-0 print:max-w-none">
+        <div className="space-y-6 print:hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                 <Sparkles className="size-6 text-primary" /> Interactive Resume Builder
               </h1>
               <p className="text-xs text-muted-foreground">
-                Create a professional resume with an embedded video or audio introduction.
+                AI powered resume builder from speech &amp; video introductions.
               </p>
             </div>
 
-            <Badge variant="outline" className="text-xs font-bold px-3 py-1 border-primary/30 text-primary">
-              Step {currentStep} of 4
+            <Badge variant="outline" className="text-xs font-bold px-3 py-1 border-primary/30 text-primary flex items-center gap-1.5">
+              {isStep1Locked && <Lock className="size-3 text-emerald-500" />}
+              <span>Step {currentStep} of 4</span>
             </Badge>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { step: 1, title: "1. Self-Introduction", desc: "Upload Video / Audio", active: currentStep === 1, done: currentStep > 1 || !!attachedMedia?.url },
-              { step: 2, title: "2. Review Details", desc: "AI Speech Extraction", active: currentStep === 2, done: currentStep > 2 },
-              { step: 3, title: "3. Resume Design", desc: "Choose Template", active: currentStep === 3, done: currentStep > 3 },
-              { step: 4, title: "4. Final Output", desc: "Preview & Download", active: currentStep === 4, done: false },
+              { step: 1, title: "1. Self-Introduction", desc: isStep1Locked ? "Confirmed & Locked" : "Upload Video / Audio", active: currentStep === 1, done: currentStep > 1 || isStep1Locked },
+              { step: 2, title: "2. Resume Details", desc: "Review Extracted Data", active: currentStep === 2, done: currentStep > 2 || !!structuredData?.contact?.fullName },
+              { step: 3, title: "3. Resume Design", desc: "6 Production Templates", active: currentStep === 3, done: currentStep > 3 },
+              { step: 4, title: "4. Final Output", desc: "PDF & DOCX Export", active: currentStep === 4, done: false },
             ].map((s) => (
               <div
                 key={s.step}
-                onClick={() => (s.done || s.step <= currentStep) && setCurrentStep(s.step as any)}
+                onClick={() => (s.done || s.step <= currentStep) && navigateToStep(s.step as any)}
                 className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
                   s.active
                     ? "border-primary bg-primary/10 shadow-md"
@@ -356,22 +592,25 @@ export const ResumeBuilder: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <Video className="size-5 text-primary" /> Step 1: Self-Introduction Media
+                    <Video className="size-5 text-primary" /> Step 1: Self-Introduction
                   </h2>
                   <p className="text-xs text-muted-foreground max-w-xl">
-                    Record or upload a 1-2 minute video or audio introduction highlighting your experience and skills.
+                    Tell us about yourself, your experience, projects, skills, education, and career goals. We'll use your introduction to build your resume.
                   </p>
                 </div>
 
-                <Button
-                  onClick={() => {
-                    setActiveTab("upload_video");
-                    setDialogOpen(true);
-                  }}
-                  className="font-bold text-xs gap-2 shadow-lg shadow-primary/20 shrink-0"
-                >
-                  <UploadCloud className="size-4" /> Upload Introduction
-                </Button>
+                {!isStep1Locked ? (
+                  <Button
+                    onClick={() => setGuidanceOpen(true)}
+                    className="font-bold text-xs gap-2 shadow-lg shadow-primary/20 shrink-0"
+                  >
+                    <UploadCloud className="size-4" /> Upload Introduction
+                  </Button>
+                ) : (
+                  <Badge variant="outline" className="text-xs font-bold text-emerald-500 border-emerald-500/30 gap-1.5 px-3 py-1">
+                    <Lock className="size-3.5" /> ✓ Step 1 Locked
+                  </Badge>
+                )}
               </div>
 
               {activeSocketJob && activeSocketJob.status !== "COMPLETED" && activeSocketJob.status !== "FAILED" && (
@@ -381,7 +620,7 @@ export const ResumeBuilder: React.FC = () => {
                       <Loader2 className="size-5 text-primary animate-spin shrink-0" />
                       <div>
                         <p className="font-bold text-xs">Uploading your self-introduction...</p>
-                        <p className="text-[11px] text-muted-foreground">Please wait while your media is processed.</p>
+                        <p className="text-[11px] text-muted-foreground">Please wait while your media is stored.</p>
                       </div>
                     </div>
 
@@ -394,59 +633,110 @@ export const ResumeBuilder: React.FC = () => {
                 </div>
               )}
 
+              {isTranscribing && (
+                <div className="p-4 rounded-xl border border-indigo-500/40 bg-indigo-500/5 text-foreground space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <Wand2 className="size-5 text-indigo-500 animate-spin shrink-0" />
+                      <div>
+                        <p className="font-bold text-xs">AI Speech &amp; Information Extraction Active</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {transcriptionJob?.step || "Extracting professional details from media..."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Badge variant="outline" className="text-[10px] font-bold text-indigo-500 border-indigo-500/30">
+                      {transcriptionJob?.progress || 60}%
+                    </Badge>
+                  </div>
+
+                  <Progress value={transcriptionJob?.progress || 60} className="h-2 bg-indigo-500/20" />
+                </div>
+              )}
+
               {isLatestLoading ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">Loading self-introduction...</div>
               ) : attachedMedia?.url ? (
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-4">
+                  <div className={`p-4 rounded-xl border space-y-4 ${
+                    isStep1Locked
+                      ? "border-emerald-500/40 bg-emerald-500/5"
+                      : "border-primary/30 bg-card"
+                  }`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="size-5 text-emerald-500" />
-                        <span className="font-bold text-sm text-foreground">Self-Introduction Attached</span>
+                        <span className="font-bold text-sm text-foreground">
+                          {isStep1Locked ? "Self-Introduction Confirmed &amp; Locked" : "Self-Introduction Attached"}
+                        </span>
                       </div>
-                      <Badge variant="outline" className="text-[10px] text-emerald-500 border-emerald-500/30 font-bold">
-                        Attached &amp; Ready
+                      <Badge variant="outline" className={`text-[10px] font-bold gap-1 ${
+                        isStep1Locked ? "text-emerald-500 border-emerald-500/30" : "text-primary border-primary/30"
+                      }`}>
+                        {isStep1Locked ? <Lock className="size-3" /> : null}
+                        {isStep1Locked ? "Locked" : "Ready for Review"}
                       </Badge>
                     </div>
 
-                    <CustomMediaPlayer
-                      src={attachedMedia.url}
-                      resourceType={attachedMedia.type || "video"}
-                      originalFileName={attachedMedia.originalName}
-                    />
+                    {attachedMedia.type === "audio" ? (
+                      <CustomAudioPlayer
+                        src={attachedMedia.url}
+                        originalFileName={attachedMedia.originalName}
+                      />
+                    ) : (
+                      <CustomMediaPlayer
+                        src={attachedMedia.url}
+                        resourceType="video"
+                        originalFileName={attachedMedia.originalName}
+                      />
+                    )}
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
                       <span className="flex items-center gap-1">
                         <Clock className="size-3.5" /> Uploaded {new Date(attachedMedia.uploadedAt || Date.now()).toLocaleDateString()}
                       </span>
 
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setConfirmDeleteOpen(true)}
-                          className="text-xs text-destructive hover:bg-destructive/10 gap-1 h-7"
-                        >
-                          <Trash2 className="size-3.5" /> Remove
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setActiveTab("upload_video");
-                            setDialogOpen(true);
-                          }}
-                          className="text-xs font-bold gap-1 h-7"
-                        >
-                          <RefreshCw className="size-3" /> Replace
-                        </Button>
-                      </div>
+                      {!isStep1Locked ? (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setConfirmDeleteOpen(true)}
+                            className="text-xs text-destructive hover:bg-destructive/10 gap-1 h-7"
+                          >
+                            <Trash2 className="size-3.5" /> Remove
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setGuidanceOpen(true)}
+                            className="text-xs font-bold gap-1 h-7"
+                          >
+                            <RefreshCw className="size-3" /> Replace
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                          <Lock className="size-3" /> Step 1 is locked because your extracted information is now being used to build your resume.
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-end pt-2">
-                    <Button size="sm" onClick={() => setCurrentStep(2)} className="font-bold text-xs gap-1.5 shadow-md">
-                      <span>Continue to Step 2 (Review Details)</span>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (isStep1Locked) {
+                          navigateToStep(2);
+                        } else {
+                          setStep1ConfirmOpen(true);
+                        }
+                      }}
+                      className="font-bold text-xs gap-1.5 shadow-md"
+                    >
+                      <span>{isStep1Locked ? "Continue to Step 2 (Resume Details)" : "Continue to Step 2"}</span>
                       <ArrowRight className="size-4" />
                     </Button>
                   </div>
@@ -463,10 +753,7 @@ export const ResumeBuilder: React.FC = () => {
                     </p>
                   </div>
                   <Button
-                    onClick={() => {
-                      setActiveTab("upload_video");
-                      setDialogOpen(true);
-                    }}
+                    onClick={() => setGuidanceOpen(true)}
                     className="font-bold text-xs gap-2"
                   >
                     <Camera className="size-4" /> Add Introduction
@@ -478,65 +765,227 @@ export const ResumeBuilder: React.FC = () => {
         )}
 
         {currentStep === 2 && (
-          <div className="p-8 rounded-2xl border border-border bg-card shadow-lg space-y-6 text-center">
-            <div className="size-16 rounded-full bg-primary/20 text-primary mx-auto flex items-center justify-center">
-              <Sparkles className="size-8" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-lg font-bold text-foreground">Step 2: Review Extracted Details</h2>
-              <p className="text-xs text-muted-foreground max-w-lg mx-auto">
-                Our speech extraction service will process your recorded introduction to populate skills, work history, and key project achievements.
-              </p>
-            </div>
-            <div className="flex justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => setCurrentStep(1)}>
-                Back to Step 1
-              </Button>
-              <Button size="sm" onClick={() => setCurrentStep(3)}>
-                Continue to Step 3 (Templates)
-              </Button>
-            </div>
+          <div className="p-6 rounded-2xl border border-border bg-card shadow-lg space-y-6">
+            <StructuredResumeEditor
+              initialData={structuredData}
+              rawTranscript={attachedTranscript?.text}
+              onSave={handleSaveStructured}
+              onRetriggerExtraction={handleRetriggerExtraction}
+              onContinue={() => navigateToStep(3)}
+              isSaving={updateStructuredMutation.isPending}
+              isExtracting={retriggerExtractionMutation.isPending}
+            />
           </div>
         )}
 
         {currentStep === 3 && (
-          <div className="p-8 rounded-2xl border border-border bg-card shadow-lg space-y-6 text-center">
-            <div className="size-16 rounded-full bg-primary/20 text-primary mx-auto flex items-center justify-center">
-              <LayoutTemplate className="size-8" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-lg font-bold text-foreground">Step 3: Choose Resume Design</h2>
-              <p className="text-xs text-muted-foreground max-w-lg mx-auto">
-                Select an ATS-optimized, modern layout template for your resume.
-              </p>
-            </div>
-            <div className="flex justify-center gap-3">
-              <Button variant="outline" size="sm" onClick={() => setCurrentStep(2)}>
-                Back to Step 2
-              </Button>
-              <Button size="sm" onClick={() => setCurrentStep(4)}>
-                Continue to Step 4 (Generate)
-              </Button>
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl border border-border bg-card shadow-lg space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    <LayoutTemplate className="size-5 text-primary" /> Step 3: Choose Resume Template
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Select a production-quality design layout. The layout updates instantly without modifying your resume content.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => navigateToStep(2)} className="text-xs font-semibold">
+                    Back to Step 2
+                  </Button>
+                  <Button size="sm" onClick={() => navigateToStep(4)} className="font-bold text-xs gap-1.5 shadow-md">
+                    <span>Continue to Step 4 (Export)</span>
+                    <ArrowRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Palette className="size-4 text-primary" /> Theme Accent Color
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    {[
+                      { id: "indigo", bg: "bg-indigo-600" },
+                      { id: "emerald", bg: "bg-emerald-600" },
+                      { id: "crimson", bg: "bg-rose-600" },
+                      { id: "amber", bg: "bg-amber-600" },
+                      { id: "slate", bg: "bg-slate-900" },
+                      { id: "violet", bg: "bg-violet-600" },
+                    ].map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedColor(c.id as any);
+                          if (attachedResume?._id) {
+                            updateBuilderStateMutation.mutate({
+                              id: attachedResume._id,
+                              selectedColor: c.id,
+                              selectedTemplate,
+                            });
+                          }
+                        }}
+                        className={`size-6 rounded-full ${c.bg} transition-all ${
+                          selectedColor === c.id ? "ring-2 ring-primary ring-offset-2 scale-110" : "opacity-70 hover:opacity-100"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                  {[
+                    { id: "minimal", name: "Minimal", desc: "Clean Whitespace" },
+                    { id: "modern", name: "Modern", desc: "Sleek Accent Banner" },
+                    { id: "professional", name: "Professional", desc: "Corporate Sidebar" },
+                    { id: "ats", name: "ATS Friendly", desc: "Max Compatibility" },
+                    { id: "creative", name: "Creative", desc: "Gradient Timeline" },
+                    { id: "executive", name: "Executive", desc: "Formal Dual Column" },
+                  ].map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => {
+                        setSelectedTemplate(t.id as any);
+                        if (attachedResume?._id) {
+                          updateBuilderStateMutation.mutate({
+                            id: attachedResume._id,
+                            selectedTemplate: t.id,
+                            selectedColor,
+                          });
+                        }
+                      }}
+                      className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all ${
+                        selectedTemplate === t.id
+                          ? "border-primary bg-primary/10 shadow-md ring-2 ring-primary/20"
+                          : "border-border/80 bg-muted/20 hover:border-border hover:bg-muted/40"
+                      }`}
+                    >
+                      <p className="font-bold text-xs text-foreground">{t.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{t.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border border-border/80 rounded-xl p-4 bg-muted/10 shadow-inner">
+                <div className="max-w-4xl mx-auto shadow-2xl rounded-xl overflow-hidden">
+                  <TemplateRenderer
+                    templateId={selectedTemplate}
+                    colorTheme={selectedColor}
+                    data={structuredData}
+                    targetRole={targetRole}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {currentStep === 4 && (
-          <div className="p-8 rounded-2xl border border-border bg-card shadow-lg space-y-6 text-center">
-            <div className="size-16 rounded-full bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center">
-              <CheckCircle2 className="size-8" />
+          <div className="space-y-6">
+            <div className="p-6 rounded-2xl border border-border bg-card shadow-lg space-y-6 print:p-0 print:border-none print:shadow-none">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4 print:hidden">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    <CheckCircle2 className="size-5 text-emerald-500" /> Step 4: Resume Ready &amp; Export
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Canonical server-side export. Download your resume in high-resolution PDF or Word (.docx) format.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={() => navigateToStep(3)} className="text-xs font-semibold">
+                    Back to Templates
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDownloadDocx}
+                    disabled={exportDocxMutation.isPending || generatedFiles?.docx?.status === "GENERATING"}
+                    className="font-bold text-xs gap-1.5 border-blue-500/40 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                  >
+                    {exportDocxMutation.isPending || generatedFiles?.docx?.status === "GENERATING" ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Generating DOCX...</span>
+                      </>
+                    ) : generatedFiles?.docx?.status === "COMPLETED" ? (
+                      <>
+                        <Download className="size-4" />
+                        <span>Download DOCX</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="size-4" />
+                        <span>{generatedFiles?.docx?.status === "FAILED" ? "Retry DOCX Export" : "Generate DOCX"}</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={handleDownloadPdf}
+                    disabled={exportPdfMutation.isPending || generatedFiles?.pdf?.status === "GENERATING"}
+                    className="font-bold text-xs gap-1.5 shadow-md"
+                  >
+                    {exportPdfMutation.isPending || generatedFiles?.pdf?.status === "GENERATING" ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Generating PDF...</span>
+                      </>
+                    ) : generatedFiles?.pdf?.status === "COMPLETED" ? (
+                      <>
+                        <Download className="size-4" />
+                        <span>Download PDF</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="size-4" />
+                        <span>{generatedFiles?.pdf?.status === "FAILED" ? "Retry PDF Export" : "Generate PDF"}</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button variant="ghost" size="sm" onClick={handlePrint} className="text-xs font-semibold text-muted-foreground gap-1">
+                    <Printer className="size-3.5" /> Print
+                  </Button>
+                </div>
+              </div>
+
+              <div id="resume-preview-container" className="max-w-4xl mx-auto shadow-2xl rounded-xl overflow-hidden print:shadow-none print:max-w-none">
+                <TemplateRenderer
+                  templateId={selectedTemplate}
+                  colorTheme={selectedColor}
+                  data={structuredData}
+                  targetRole={targetRole}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <h2 className="text-lg font-bold text-foreground">Step 4: Interactive Output Ready</h2>
-              <p className="text-xs text-muted-foreground max-w-lg mx-auto">
-                Your interactive resume with attached video/audio introduction is ready.
-              </p>
-            </div>
-            <Button size="sm" onClick={() => setCurrentStep(1)}>
-              Start Over
-            </Button>
           </div>
         )}
+
+        <PreUploadGuidanceDialog
+          open={guidanceOpen}
+          onOpenChange={setGuidanceOpen}
+          onProceed={() => {
+            setActiveTab("upload_video");
+            setDialogOpen(true);
+          }}
+        />
+
+        <Step1ConfirmDialog
+          open={step1ConfirmOpen}
+          onOpenChange={setStep1ConfirmOpen}
+          data={structuredData}
+          onConfirm={handleConfirmStep1Action}
+          isConfirming={confirmStep1Mutation.isPending}
+        />
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-2xl font-sans p-6 bg-card border-border shadow-2xl rounded-2xl">

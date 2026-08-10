@@ -8,6 +8,12 @@ const resumeSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    recordType: {
+      type: String,
+      enum: ["RESUME", "BUILDER_DRAFT"],
+      default: "RESUME",
+      index: true,
+    },
     originalName: {
       type: String,
       required: true,
@@ -46,6 +52,59 @@ const resumeSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    step1Status: {
+      type: String,
+      enum: ["DRAFT", "PROCESSING", "READY", "CONFIRMED", "FAILED"],
+      default: "DRAFT",
+    },
+    step1ConfirmedAt: {
+      type: Date,
+      default: null,
+    },
+    selectedTemplate: {
+      type: String,
+      enum: ["minimal", "modern", "professional", "ats", "creative", "executive"],
+      default: "modern",
+    },
+    selectedColor: {
+      type: String,
+      enum: ["indigo", "emerald", "crimson", "amber", "slate", "violet"],
+      default: "indigo",
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    generatedFiles: {
+      pdf: {
+        status: {
+          type: String,
+          enum: ["PENDING", "GENERATING", "COMPLETED", "FAILED", "STALE"],
+          default: "PENDING",
+        },
+        key: { type: String, default: null },
+        url: { type: String, default: null },
+        failureReason: { type: String, default: null },
+        generatedAt: { type: Date, default: null },
+        version: { type: Number, default: 1 },
+      },
+      docx: {
+        status: {
+          type: String,
+          enum: ["PENDING", "GENERATING", "COMPLETED", "FAILED", "STALE"],
+          default: "PENDING",
+        },
+        key: { type: String, default: null },
+        url: { type: String, default: null },
+        failureReason: { type: String, default: null },
+        generatedAt: { type: Date, default: null },
+        version: { type: Number, default: 1 },
+      },
+    },
+    extractionPromptVersion: {
+      type: String,
+      default: "v1.1",
+    },
     uploadStatus: {
       type: String,
       enum: ["QUEUED", "UPLOADING", "COMPLETED", "FAILED"],
@@ -77,7 +136,20 @@ const resumeSchema = new mongoose.Schema(
       status: { type: String, default: "QUEUED" },
       uploadedAt: { type: Date, default: null },
     },
-    transcript: { type: String, default: "" },
+    transcript: {
+      status: {
+        type: String,
+        enum: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+        default: "PENDING",
+      },
+      text: { type: String, default: "" },
+      language: { type: String, default: "en" },
+      duration: { type: Number, default: 0 },
+      provider: { type: String, default: "gemini" },
+      jobId: { type: String, default: null },
+      failureReason: { type: String, default: null },
+      completedAt: { type: Date, default: null },
+    },
     summary: { type: String, default: "" },
     projects: { type: Array, default: [] },
     skills: { type: Array, default: [] },
@@ -87,6 +159,6 @@ const resumeSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-resumeSchema.index({ userId: 1, createdAt: -1 });
+resumeSchema.index({ userId: 1, recordType: 1, createdAt: -1 });
 const Resume = mongoose.model("Resume", resumeSchema);
 export default Resume;
