@@ -117,8 +117,95 @@ export const uploadFileToS3 = async (filePath, objectKey, contentType = "video/m
     }
 };
 
+export const uploadBufferToS3 = async (buffer, objectKey, contentType = "application/pdf") => {
+    const bucketName = env.AWS_S3_BUCKET_NAME || "resumelab-storage";
+    const sanitizedKey = objectKey.replace(/[\/\\]/g, "_");
+
+    if (!hasAws) {
+        const destPath = path.join(LOCAL_S3_DIR, sanitizedKey);
+        fs.writeFileSync(destPath, buffer);
+        const serverPort = env.PORT || 5000;
+        const localUrl = `http://localhost:${serverPort}/uploads/s3/${sanitizedKey}`;
+        return {
+            bucket: "local-dev-bucket",
+            objectKey: sanitizedKey,
+            url: localUrl,
+            bytes: buffer.length,
+        };
+    }
+
+    const putCommand = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey,
+        Body: buffer,
+        ContentType: contentType,
+    });
+
+    await s3Client.send(putCommand);
+
+    const getCommand = new GetObjectCommand({
+        Bucket: bucketName,
+        Key: objectKey,
+    });
+
+    const presignedUrl = await getSignedUrl(s3Client, getCommand, {
+        expiresIn: env.AWS_PRESIGNED_URL_EXPIRES_IN || 3600,
+    });
+
+    return {
+        bucket: bucketName,
+        objectKey,
+        url: presignedUrl,
+        bytes: buffer.length,
+    };
+};
+
+export const downloadFileFromS3OrLocal = async (objectKey, mediaUrl) => {
+    if (objectKey) {
+        const sanitizedKey = objectKey.replace(/[\/\\]/g, "_");
+        const localPath = path.join(LOCAL_S3_DIR, sanitizedKey);
+        if (fs.existsSync(localPath)) {
+            return { filePath: localPath, isTemp: false };
+        }
+        const directLocalPath = path.join(process.cwd(), objectKey);
+        if (fs.existsSync(directLocalPath)) {
+            return { filePath: directLocalPath, isTemp: false };
+        }
+    }
+
+    if (hasAws && objectKey) {
+        const bucketName = env.AWS_S3_BUCKET_NAME || "resumelab-storage";
+        const getCommand = new GetObjectCommand({ Bucket: bucketName, Key: objectKey });
+        const response = await s3Client.send(getCommand);
+
+        if (!fs.existsSync(LOCAL_S3_DIR)) {
+            fs.mkdirSync(LOCAL_S3_DIR, { recursive: true });
+        }
+        const tempPath = path.join(LOCAL_S3_DIR, `temp_stt_${Date.now()}_${path.basename(objectKey)}`);
+
+        const byteArray = await response.Body.transformToByteArray();
+        fs.writeFileSync(tempPath, Buffer.from(byteArray));
+        return { filePath: tempPath, isTemp: true };
+    }
+
+    if (mediaUrl && mediaUrl.startsWith("http")) {
+        if (!fs.existsSync(LOCAL_S3_DIR)) {
+            fs.mkdirSync(LOCAL_S3_DIR, { recursive: true });
+        }
+        const tempPath = path.join(LOCAL_S3_DIR, `temp_stt_${Date.now()}.media`);
+        const res = await fetch(mediaUrl);
+        if (res.ok) {
+            const arrayBuffer = await res.arrayBuffer();
+            fs.writeFileSync(tempPath, Buffer.from(arrayBuffer));
+            return { filePath: tempPath, isTemp: true };
+        }
+    }
+
+    return null;
+};
+
 export const getPresignedDownloadUrl = async (objectKey, expiresIn = 3600) => {
-    if (!hasAws || objectKey.startsWith("uploads_")) {
+    if (!hasAws || objectKey.startsWith("uploads_") || !s3Client) {
         const serverPort = env.PORT || 5000;
         return `http://localhost:${serverPort}/uploads/s3/${objectKey}`;
     }

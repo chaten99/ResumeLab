@@ -10,6 +10,7 @@ import { env } from "../config/env.js";
 import logger from "../config/logger.js";
 import fs from "fs";
 import Redis from "ioredis";
+import { addResumeTranscriptionJob } from "../queues/transcription.queue.js";
 
 let resumeWorker;
 
@@ -117,7 +118,8 @@ resumeWorker = new Worker(
             media: mediaData,
             uploadStatus: "COMPLETED",
             processingStatus: "COMPLETED",
-            currentStep: 2,
+            "transcript.status": "PENDING",
+            currentStep: 1.5,
           },
         },
         { new: true }
@@ -132,6 +134,21 @@ resumeWorker = new Worker(
         media: mediaData,
         resume: updatedResume ? updatedResume.toObject() : null,
       });
+
+      try {
+        await addResumeTranscriptionJob({
+          resumeId: resumeId.toString(),
+          userId: userId.toString(),
+          filePath,
+          objectKey: s3Result.objectKey,
+          mimeType,
+          resourceType,
+          originalFileName,
+        });
+        console.log(`[Resume Worker] Enqueued transcription job for resumeId: ${resumeId}`);
+      } catch (transcribeErr) {
+        logger.error({ err: transcribeErr.message }, "Failed to enqueue transcription job");
+      }
 
       if (user?.email) {
         try {
@@ -149,7 +166,7 @@ resumeWorker = new Worker(
         await createInAppNotification({
           userId,
           title: "Introduction Uploaded",
-          message: `Your self-introduction ${resourceType} "${originalFileName}" was uploaded successfully.`,
+          message: `Your self-introduction ${resourceType} "${originalFileName}" was uploaded successfully. Speech extraction started.`,
           type: "success",
         });
       } catch (_) {}
